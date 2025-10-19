@@ -110,7 +110,7 @@ def NS_Sort(pop):
         F.append(Q)
         k += 1
 
-    return pop, F
+    return F
 
 
 def CD_calc(pop, F):

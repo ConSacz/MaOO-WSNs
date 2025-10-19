@@ -243,10 +243,12 @@ def dtlz2(X, n_obj=3):
     """
     DTLZ2 with decision variables in [0,1].
     assumes X shape (pop, nvar) with nvar >= n_obj - 1
+    returns shape (pop, n_obj)
     """
+    X = np.asarray(X)
+    if X.ndim == 1:
+        X = X.reshape(1, -1)
     pop, nvar = X.shape
-    k = nvar - (n_obj - 1)
-    # split
     x1 = X[:, :n_obj - 1]
     x2 = X[:, n_obj - 1:]
     g = np.sum((x2 - 0.5) ** 2, axis=1)
@@ -276,7 +278,7 @@ if __name__ == "__main__":
         return dtlz2(X, n_obj=n_obj)
 
     X, F = rvea(objf_pop, n_var=n_var, n_obj=n_obj,
-                  pop_size=pop_size, max_gen=max_gen, p_ref=6,
+                  pop_size=pop_size, max_gen=max_gen, p_ref=12,
                   crossover_prob=0.9, eta_c=20, eta_m=20, pm=None,
                   theta0=5.0, alpha=2.0, seed=42)
 

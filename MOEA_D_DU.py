@@ -16,7 +16,26 @@ def uniform_weights(n_weights, n_obj):
     X = np.random.rand(n_weights, n_obj)
     X /= X.sum(axis=1, keepdims=True)
     return X
+def das_dennis_generate(M, d):
+    # M: objectives, d: divisions (positive integer)
+    def recursive_gen(M, left, depth):
+        if depth == M - 1:
+            return [[left]]
+        res = []
+        for i in range(left + 1):
+            tails = recursive_gen(M, left - i, depth + 1)
+            for t in tails:
+                res.append([i] + t)
+        return res
 
+    combos = recursive_gen(M, d, 0)
+    W = np.array(combos, dtype=float) / float(d)
+    # remove duplicates (shouldn't be necessary)
+    # ensure unit directions (norm not zero)
+    norms = np.linalg.norm(W, axis=1, keepdims=True)
+    norms[norms == 0] = 1.0
+    W = W / norms
+    return W
 # -------------------------
 # scalarizing: Tchebycheff
 # -------------------------
@@ -85,7 +104,7 @@ def problem_eval(x):
 #
 
 #problem_eval,    # function x -> f (array of M objectives)
-D = 10               # decision dimension
+D = 12               # decision dimension
 n_obj = 3           # number of objectives
 nPop=100
 max_gen=200
@@ -102,7 +121,10 @@ if seed is not None:
     np.random.seed(seed)
 
 # 1) weight vectors and neighborhoods
-W = uniform_weights(nPop, n_obj)            # (nPop, n_obj)
+#W = uniform_weights(nPop, n_obj)            # (nPop, n_obj)
+W = das_dennis_generate(3,13)
+rows_to_delete = np.random.choice(W.shape[0], 5, replace=False)
+W = np.delete(W, rows_to_delete, axis=0)
 # compute neighbors by Euclidean distance in weight space
 distW = np.linalg.norm(W[:, None, :] - W[None, :, :], axis=2)
 neighborhoods = np.argsort(distW, axis=1)[:, :neigh_size]

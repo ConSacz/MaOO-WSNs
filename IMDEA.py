@@ -540,7 +540,7 @@ if __name__ == "__main__":
     # small smoke test on DTLZ2 (3 objectives)
     n_obj = 3
     n_var = 12
-    pop_size = 100
+    pop_size = None
 
     def obj(X):
         return dtlz2(X, n_obj=n_obj)
@@ -552,7 +552,7 @@ if __name__ == "__main__":
                              max_fes=20000,
                              seed=1,
                              NP_init=pop_size,
-                             NP_min=60,
+                             NP_min=100,
                              archive_rate=2.6,
                              use_local_search=False)
 
