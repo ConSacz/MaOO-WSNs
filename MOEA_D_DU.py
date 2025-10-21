@@ -1,97 +1,14 @@
-# moeaddu.py
-# a compact, readable MOEA/D implementation with a distance-based updating (DU) variant
-# requires: numpy
+# moeaddu_pop_only.py
+# MOEA/D-DU implementation that uses only `pop` (list of dicts) — no X, F arrays.
 import numpy as np
 import matplotlib.pyplot as plt
-# -------------------------
-# helper: uniform weight vectors (simple grid)
-# -------------------------
-def uniform_weights(n_weights, n_obj):
-    # produce roughly-uniform weight vectors on a simplex by simple random + normalize if n_obj>2
-    if n_obj == 2:
-        w = np.linspace(0, 1, n_weights)[:, None]
-        W = np.hstack([w, 1 - w])
-        return W
-    # for n_obj>2, sample random and normalize (simple and practical)
-    X = np.random.rand(n_weights, n_obj)
-    X /= X.sum(axis=1, keepdims=True)
-    return X
-def das_dennis_generate(M, d):
-    # M: objectives, d: divisions (positive integer)
-    def recursive_gen(M, left, depth):
-        if depth == M - 1:
-            return [[left]]
-        res = []
-        for i in range(left + 1):
-            tails = recursive_gen(M, left - i, depth + 1)
-            for t in tails:
-                res.append([i] + t)
-        return res
-
-    combos = recursive_gen(M, d, 0)
-    W = np.array(combos, dtype=float) / float(d)
-    # remove duplicates (shouldn't be necessary)
-    # ensure unit directions (norm not zero)
-    norms = np.linalg.norm(W, axis=1, keepdims=True)
-    norms[norms == 0] = 1.0
-    W = W / norms
-    return W
-# -------------------------
-# scalarizing: Tchebycheff
-# -------------------------
-def tchebycheff(f, w, z):
-    # f: objectives (M,)
-    # w: weight vector (M,)
-    # z: ideal point (M,)
-    # return scalar value (the smaller the better)
-    diff = np.abs(f - z)
-    # avoid zero weights
-    w_safe = np.where(w == 0, 1e-12, w)
-    return np.max(diff / w_safe)
+from utils.Decompose_functions import das_dennis_generate, tchebycheff, vertical_distance
 
 # -------------------------
-# DE operator (rand/1/bin)
+# Problem evaluation
 # -------------------------
-def de_rand1_bin(pop, F=0.5, CR=0.9, xmin=None, xmax=None):
-    # pop: (N, D)
-    N, D = pop.shape
-    idx = np.arange(N)
-    u = np.empty_like(pop)
-    for i in range(N):
-        a, b, c = np.random.choice(idx[idx != i], 3, replace=False)
-        mutant = pop[a] + F * (pop[b] - pop[c])
-        # crossover binomial
-        cross = np.random.rand(D) < CR
-        jrand = np.random.randint(D)
-        cross[jrand] = True
-        trial = np.where(cross, mutant, pop[i])
-        # bounds
-        if xmin is not None:
-            trial = np.maximum(trial, xmin)
-        if xmax is not None:
-            trial = np.minimum(trial, xmax)
-        u[i, :] = trial
-    return u
-
-# -------------------------
-# compute perpendicular (vertical) distance from objective point f to the direction w
-# used to rank neighbors in DU (common interpretation: distance between solution and weight vector)
-# -------------------------
-def vertical_distance(f, w, ref = np.zeros(0)):
-    # project f (objectives) on direction w (weights)
-    # both f and w are arrays of shape (M,)
-    # we compute distance from point f to the ray along w through origin (or ref)
-    # if ref given (ideal), subtract it first
-    if ref.size:
-        f = f - ref
-    wn = w / (np.linalg.norm(w) + 1e-12)
-    proj = np.dot(f, wn) * wn
-    perp = f - proj
-    return np.linalg.norm(perp)
-
 def problem_eval(x):
     x = np.atleast_2d(x)
-    n = x.shape[1]
     g = np.sum((x[:, 2:] - 0.5)**2, axis=1)
     f1 = (1 + g) * np.cos(0.5 * np.pi * x[:, 0]) * np.cos(0.5 * np.pi * x[:, 1])
     f2 = (1 + g) * np.cos(0.5 * np.pi * x[:, 0]) * np.sin(0.5 * np.pi * x[:, 1])
@@ -99,111 +16,175 @@ def problem_eval(x):
     F =np.vstack([f1, f2, f3]).T
     return F.squeeze()
 
-# %%
-# MOEA/D with DU like update function
-#
+# -------------------------
+# DE operator variant that works directly from pop (rand/1/bin)
+# returns children positions array shape (nPop, D)
+# -------------------------
+def de_rand1_bin_pop(pop, F=0.5, CR=0.9, xmin=None, xmax=None):
+    # pop: list of dicts, each dict has 'Position' (ndarray)
+    positions = np.array([p['Position'] for p in pop])  # (N, D)
+    N, D = positions.shape
+    idx = np.arange(N)
+    children = np.empty_like(positions)
+    for i in range(N):
+        # choose three distinct indices != i
+        a, b, c = np.random.choice(idx[idx != i], 3, replace=False)
+        mutant = positions[a] + F * (positions[b] - positions[c])
+        # binomial crossover
+        cross = np.random.rand(D) < CR
+        jrand = np.random.randint(D)
+        cross[jrand] = True
+        trial = np.where(cross, mutant, positions[i])
+        # bounds (support scalar or arrays)
+        if xmin is not None:
+            trial = np.maximum(trial, xmin)
+        if xmax is not None:
+            trial = np.minimum(trial, xmax)
+        children[i, :] = trial
+    return children
 
-#problem_eval,    # function x -> f (array of M objectives)
-D = 12               # decision dimension
-n_obj = 3           # number of objectives
-nPop=100
-max_gen=200
-neigh_size=20
-nr=2            # max replacements per offspring
-Fm=0.5 
-CR=0.9
-xmin=0 
-xmax=1
-seed=0
-
-# %%
-if seed is not None:
-    np.random.seed(seed)
-
-# 1) weight vectors and neighborhoods
-#W = uniform_weights(nPop, n_obj)            # (nPop, n_obj)
-W = das_dennis_generate(3,13)
-rows_to_delete = np.random.choice(W.shape[0], 5, replace=False)
-W = np.delete(W, rows_to_delete, axis=0)
-# compute neighbors by Euclidean distance in weight space
-distW = np.linalg.norm(W[:, None, :] - W[None, :, :], axis=2)
-neighborhoods = np.argsort(distW, axis=1)[:, :neigh_size]
-
-# 2) initialize population (random uniformly in bounds if given, else normal(0,1))
-X = np.random.rand(nPop, D) * (xmax - xmin) + xmin
-F = np.array([problem_eval(X[i]) for i in range(nPop)])  # (nPop, n_obj)
-
-# ideal point
-z = np.min(F, axis=0)
-# %%
-for gen in range(max_gen):
-    # create offspring population via DE (vectorized: produce nPop offspring corresponding to each subproblem)
-    U = de_rand1_bin(X, F=Fm, CR=CR, xmin=xmin, xmax=xmax)  # (nPop, D)
-    FU = np.array([problem_eval(U[i]) for i in range(nPop)])
-    # update ideal point
-    z = np.minimum(z, np.min(FU, axis=0))
-
-    # for each subproblem i, apply DU update using its neighborhood
+# -------------------------
+# Utilities for pop creation / extraction
+# -------------------------
+def init_pop_uniform(nPop, D, xmin=0.0, xmax=1.0, eval_func=None):
+    pop = []
+    X = np.random.rand(nPop, D) * (xmax - xmin) + xmin
+    if eval_func is None:
+        raise ValueError("eval_func required to initialize costs")
+    F = np.array([eval_func(X[i]) for i in range(nPop)])
     for i in range(nPop):
-        child = U[i]
-        child_f = FU[i]
-        # candidate indices: neighborhood of i (you could also use whole population)
-        cand_idx = neighborhoods[i].copy()
+        pop.append({'Position': X[i].copy(), 'Cost': F[i].copy()})
+    return pop
 
-        # compute vertical distance between candidate solutions' objectives and their weight vectors
-        # note: for DU, one uses vertical distance between solution and weight vector in objective space;
-        # here we compute distance of candidate's objective to the weight vector direction of candidate's subproblem
-        dists = np.zeros_like(cand_idx, dtype=float)
-        for k, j in enumerate(cand_idx):
-            dists[k] = vertical_distance(F[j], W[j], ref=z)  # rank by this distance
+def pop_positions(pop):
+    return np.array([p['Position'] for p in pop])
 
-        # order candidates by ascending vertical distance (closest first)
-        order = np.argsort(dists)
-        replaced = 0
-        for idx_in_order in order:
-            j = cand_idx[idx_in_order]
-            # compare scalarizing values
-            val_child = tchebycheff(child_f, W[j], z)
-            val_j = tchebycheff(F[j], W[j], z)
-            if val_child < val_j:
-                # replace
-                X[j] = child.copy()
-                F[j] = child_f.copy()
-                replaced += 1
-                if replaced >= nr:
-                    break
-    # optional: shuffle order of subproblems per generation to avoid bias
-    perm = np.random.permutation(nPop)
-    X = X[perm]
-    F = F[perm]
-    W = W[perm]
-    neighborhoods = neighborhoods[perm][:, :]  # note: neighborhoods indices relate to old ordering; for simplicity we recompute distances each gen
-    # recompute neighborhoods properly (cheap for moderate nPop)
+def pop_costs(pop):
+    return np.array([p['Cost'] for p in pop])
+
+# -------------------------
+# Main MOEA/D-DU loop (pop-only)
+# -------------------------
+def moead_du(problem_eval,
+                      D=12,
+                      n_obj=3,
+                      nPop=100,
+                      max_gen=200,
+                      neigh_size=20,
+                      nr=2,
+                      Fm=0.5,
+                      CR=0.9,
+                      xmin=0.0,
+                      xmax=1.0,
+                      seed=None):
+    if seed is not None:
+        np.random.seed(seed)
+
+    # 1) weight vectors and neighborhoods
+    # W = uniform_weights(nPop, n_obj)
+    W = das_dennis_generate(n_obj, 13)
+    # optionally remove random rows if W too large (kept from your prior code)
+    if W.shape[0] > nPop:
+        rows_to_delete = np.random.choice(W.shape[0], W.shape[0] - nPop, replace=False)
+        W = np.delete(W, rows_to_delete, axis=0)
+    # if still not equal to nPop, adjust nPop to W length
+    if W.shape[0] != nPop:
+        nPop = W.shape[0]
+
     distW = np.linalg.norm(W[:, None, :] - W[None, :, :], axis=2)
     neighborhoods = np.argsort(distW, axis=1)[:, :neigh_size]
 
-# %%
-# Tạo figure
-    # fig = plt.figure(1)
-    # plt.clf()
-    
-    # # Vẽ Pareto front
-    # plt.plot(F[:, 0], F[:, 1], 'o', color='g')
-    # None
-    # # Cập nhật đồ thị theo từng iteration
-    # plt.pause(0.001)
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D  # cần import để tạo trục 3D
+    # 2) initialize pop
+    pop = init_pop_uniform(nPop, D, xmin=xmin, xmax=xmax, eval_func=problem_eval)
 
-fig = plt.figure()
-ax = fig.add_subplot(111, projection='3d')
+    # ideal point
+    z = np.min(pop_costs(pop), axis=0)
 
-ax.scatter(F[:, 0], F[:, 1], F[:, 2], s=10, c='b')
+    # main loop
+    for gen in range(max_gen):
+        # create offspring positions via DE (one offspring per subproblem)
+        U = de_rand1_bin_pop(pop, F=Fm, CR=CR, xmin=xmin, xmax=xmax)  # (nPop, D)
+        FU = np.array([problem_eval(U[i]) for i in range(nPop)])     # (nPop, n_obj)
 
-ax.set_xlabel('f1')
-ax.set_ylabel('f2')
-ax.set_zlabel('f3')
-plt.title("NSGA-III approximate front (ZDT1)")
-ax.view_init(elev=25, azim=35)
-#plt.gca().invert_yaxis()
-plt.show()
+        # update ideal point
+        z = np.minimum(z, np.min(FU, axis=0))
+
+        # for each subproblem i, apply DU update using its neighborhood
+        for i in range(nPop):
+            child_pos = U[i].copy()
+            child_f = FU[i].copy()
+            cand_idx = neighborhoods[i].copy()
+
+            # compute vertical distance between candidate solutions' objectives and their weight vectors
+            dists = np.zeros_like(cand_idx, dtype=float)
+            for k, j in enumerate(cand_idx):
+                dists[k] = vertical_distance(pop[j]['Cost'], W[j], ref=z)
+
+            order = np.argsort(dists)  # ascending
+            replaced = 0
+            for idx_in_order in order:
+                j = cand_idx[idx_in_order]
+                val_child = tchebycheff(child_f, W[j], z)
+                val_j = tchebycheff(pop[j]['Cost'], W[j], z)
+                if val_child < val_j:
+                    pop[j]['Position'] = child_pos.copy()
+                    pop[j]['Cost'] = child_f.copy()
+                    replaced += 1
+                    if replaced >= nr:
+                        break
+
+        # optional: shuffle subproblems to avoid bias
+        perm = np.random.permutation(nPop)
+        pop = [pop[i] for i in perm]
+        W = W[perm]
+        # recompute neighborhoods properly after permuting W
+        distW = np.linalg.norm(W[:, None, :] - W[None, :, :], axis=2)
+        neighborhoods = np.argsort(distW, axis=1)[:, :neigh_size]
+
+        # logging
+        if (gen + 1) % 1 == 0:
+            print(f"Gen {gen+1:4d}: pop size {len(pop)}; ideal z = {z}")
+
+    return pop, W, z
+
+# -------------------------
+# Example run (parameters similar to your original)
+# -------------------------
+if __name__ == "__main__":
+    # params
+    D = 12
+    n_obj = 3
+    nPop = 100
+    max_gen = 200
+    neigh_size = 20
+    nr = 2
+    Fm = 0.5
+    CR = 0.9
+    xmin = 0.0
+    xmax = 1.0
+    seed = 0
+
+    pop, W, z = moead_du(problem_eval,
+                                  D=D,
+                                  n_obj=n_obj,
+                                  nPop=nPop,
+                                  max_gen=max_gen,
+                                  neigh_size=neigh_size,
+                                  nr=nr,
+                                  Fm=Fm,
+                                  CR=CR,
+                                  xmin=xmin,
+                                  xmax=xmax,
+                                  seed=seed)
+
+    # plot final front from pop
+    final_costs = pop_costs(pop)
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.scatter(final_costs[:, 0], final_costs[:, 1], final_costs[:, 2], s=10)
+    ax.set_xlabel('f1')
+    ax.set_ylabel('f2')
+    ax.set_zlabel('f3')
+    plt.title("MOEA/D-DU final front (pop-only)")
+    ax.view_init(elev=25, azim=35)
+    plt.show()

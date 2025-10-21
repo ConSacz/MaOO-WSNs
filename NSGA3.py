@@ -1,3 +1,9 @@
+try:
+    from IPython import get_ipython
+    get_ipython().run_line_magic('reset', '-f')
+except:
+    pass
+# %%
 """
 nsga3.py
 A compact NSGA-III implementation (numpy only).
@@ -18,26 +24,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from utils.Domination_functions import NS_Sort
 from utils.GA_functions import sbx_crossover, polynomial_mutation
+from utils.Decompose_functions import das_dennis_generate
 
-# ----------------------------
-# Das & Dennis reference generation
-# ----------------------------
-def das_dennis_generate(N_obj, d):
-    def recursive_gen(N_obj, left, depth):
-        if depth == N_obj - 1:
-            return [[left]]
-        res = []
-        for i in range(left + 1):
-            tails = recursive_gen(N_obj, left - i, depth + 1)
-            for t in tails:
-                res.append([i] + t)
-        return res
-    combos = recursive_gen(N_obj, d, 0)
-    W = np.array(combos, dtype=float) / float(d)
-    norms = np.linalg.norm(W, axis=1, keepdims=True)
-    norms[norms == 0] = 1.0
-    W = W / norms
-    return W
 
 # ----------------------------
 # Association & niching
@@ -219,7 +207,7 @@ for gen in range(max_gen):
     # Print progress
     if (gen + 1) % max(1, max_gen // 10) == 0 or gen == 0:
         ideal_now = np.min([ind['Cost'] for ind in pop], axis=0)
-        print(f"Gen {gen+1:4d}: pop size {len(pop)} ideal {ideal_now}")
+          
 
 # %% Final plot
 F = np.array([ind['Cost'] for ind in pop])
