@@ -13,7 +13,7 @@ RVEA (Reference Vector Guided Evolutionary Algorithm) - pop-only version
 - Uses SBX crossover + polynomial mutation, Das & Dennis reference vectors, PBI selection
 """
 import numpy as np
-import matplotlib.pyplot as plt
+import pyvista as pv
 from utils.Decompose_functions import das_dennis_generate
 from utils.GA_functions import sbx_crossover, polynomial_mutation
 
@@ -162,7 +162,7 @@ def rvea_pop(obj_func, n_var, n_obj, pop_size=100, max_gen=200, p_ref=1,
 
         # optional logging
         if gen % max(1, max_gen // 10) == 0 or gen == 1 or gen == max_gen:
-            print(f"gen {gen}/{max_gen}, theta={theta:.4f}, ideal={ideal}")
+            print(f"gen {gen}/{max_gen}, theta={theta:.4f}")
 
     return pop, V_unit, ideal
 
@@ -204,15 +204,30 @@ if __name__ == "__main__":
                              crossover_prob=0.9, eta_c=20, eta_m=20, pm=None,
                              theta0=5.0, alpha=2.0, xl=0.0, xu=1.0, seed=42)
 
-    # plot final front from pop
+    # %%plot final front from pop
 
-    final_costs = pop_costs(pop)
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.scatter(final_costs[:, 0], final_costs[:, 1], final_costs[:, 2], s=10)
-    ax.set_xlabel('f1')
-    ax.set_ylabel('f2')
-    ax.set_zlabel('f3')
-    plt.title("RVEA final front (pop-only)")
-    ax.view_init(elev=25, azim=35)
-    plt.show()
+    F = np.array([ind['Cost'] for ind in pop])
+    points = F[:, :3]  # f1, f2, f3
+    cloud = pv.PolyData(points)
+    
+    # gen plotter
+    plotter = pv.Plotter()
+    plotter.add_points(
+        cloud,
+        color="blue",                # color
+        point_size=8,                # size
+        render_points_as_spheres=True  # sphere point
+    )
+    plotter.show_grid(
+        xtitle='f1',
+        ytitle='f2',
+        ztitle='f3',
+        color='gray',
+        grid='back',     # vẽ lưới phía sau điểm
+        location='outer' # hiển thị nhãn ngoài khung
+    )
+    plotter.show_bounds(grid='front', color='black')
+    plotter.add_axes(line_width=10)
+    plotter.add_text("RVEA Pareto Front", position='upper_edge', font_size=14, color='black')
+    plotter.view_vector((-35, -25, 1))  # try view_isometric(), view_yx(),...
+    plotter.show(title="RVEA Pareto Front 3D")

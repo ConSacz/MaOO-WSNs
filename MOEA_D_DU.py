@@ -1,7 +1,7 @@
 # moeaddu_pop_only.py
 # MOEA/D-DU implementation that uses only `pop` (list of dicts) — no X, F arrays.
 import numpy as np
-import matplotlib.pyplot as plt
+import pyvista as pv
 from utils.Decompose_functions import das_dennis_generate, tchebycheff, vertical_distance
 
 # -------------------------
@@ -143,7 +143,7 @@ def moead_du(problem_eval,
 
         # logging
         if (gen + 1) % 1 == 0:
-            print(f"Gen {gen+1:4d}: pop size {len(pop)}; ideal z = {z}")
+            print(f"Gen {gen+1:4d}: pop size {len(pop)}")
 
     return pop, W, z
 
@@ -177,14 +177,29 @@ if __name__ == "__main__":
                                   xmax=xmax,
                                   seed=seed)
 
-    # plot final front from pop
-    final_costs = pop_costs(pop)
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.scatter(final_costs[:, 0], final_costs[:, 1], final_costs[:, 2], s=10)
-    ax.set_xlabel('f1')
-    ax.set_ylabel('f2')
-    ax.set_zlabel('f3')
-    plt.title("MOEA/D-DU final front (pop-only)")
-    ax.view_init(elev=25, azim=35)
-    plt.show()
+    # %%plot final front from pop
+    F = np.array([ind['Cost'] for ind in pop])
+    points = F[:, :3]  # f1, f2, f3
+    cloud = pv.PolyData(points)
+    
+    # gen plotter
+    plotter = pv.Plotter()
+    plotter.add_points(
+        cloud,
+        color="blue",                # color
+        point_size=8,                # size
+        render_points_as_spheres=True  # sphere point
+    )
+    plotter.show_grid(
+        xtitle='f1',
+        ytitle='f2',
+        ztitle='f3',
+        color='gray',
+        grid='back',     # vẽ lưới phía sau điểm
+        location='outer' # hiển thị nhãn ngoài khung
+    )
+    plotter.show_bounds(grid='front', color='black')
+    plotter.add_axes(line_width=10)
+    plotter.add_text("MOEAD-DU Pareto Front", position='upper_edge', font_size=14, color='black')
+    plotter.view_vector((-35, -25, 1))  # try view_isometric(), view_yx(),...
+    plotter.show(title="MOEAD-DU Pareto Front 3D")

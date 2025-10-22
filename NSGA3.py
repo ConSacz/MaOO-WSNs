@@ -21,7 +21,7 @@ Fixes:
 """
 
 import numpy as np
-import matplotlib.pyplot as plt
+import pyvista as pv
 from utils.Domination_functions import NS_Sort
 from utils.GA_functions import sbx_crossover, polynomial_mutation
 from utils.Decompose_functions import das_dennis_generate
@@ -206,17 +206,31 @@ for gen in range(max_gen):
 
     # Print progress
     if (gen + 1) % max(1, max_gen // 10) == 0 or gen == 0:
-        ideal_now = np.min([ind['Cost'] for ind in pop], axis=0)
-          
+        print(f"Gen {gen+1:4d}: pop size {len(pop)}")  
 
 # %% Final plot
 F = np.array([ind['Cost'] for ind in pop])
-fig = plt.figure()
-ax = fig.add_subplot(111, projection='3d')
-ax.scatter(F[:, 0], F[:, 1], F[:, 2], s=10)
-ax.set_xlabel('f1')
-ax.set_ylabel('f2')
-ax.set_zlabel('f3')
-plt.title("NSGA-III Approximate Pareto Front (fixed)")
-ax.view_init(elev=25, azim=35)
-plt.show()
+points = F[:, :3]  # f1, f2, f3
+cloud = pv.PolyData(points)
+
+# gen plotter
+plotter = pv.Plotter()
+plotter.add_points(
+    cloud,
+    color="blue",                # color
+    point_size=8,                # size
+    render_points_as_spheres=True  # sphere point
+)
+plotter.show_grid(
+    xtitle='f1',
+    ytitle='f2',
+    ztitle='f3',
+    color='gray',
+    grid='back',     # vẽ lưới phía sau điểm
+    location='outer' # hiển thị nhãn ngoài khung
+)
+plotter.show_bounds(grid='front', color='black')
+plotter.add_axes(line_width=10)
+plotter.add_text("NSGA3 Pareto Front", position='upper_edge', font_size=14, color='black')
+plotter.view_vector((-35, -25, 1))  # try view_isometric(), view_yx(),...
+plotter.show(title="NSGA3 Pareto Front 3D")
