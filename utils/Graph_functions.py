@@ -15,7 +15,7 @@ def Graph(pop, rc):
     G = nx.from_numpy_array(adj_matrix, create_using=nx.Graph)
     return G
 
-def Connectivity_graph(G, bat_ex):
+def Connectivity_graph(G, bat_ex=[]):
     G_sub = G.copy()
     #G_sub.remove_nodes_from(bat_ex)
     number_nodes = G.number_of_nodes() - len(bat_ex)

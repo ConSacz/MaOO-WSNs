@@ -19,26 +19,25 @@ def weighted_selection(f1,f2,w,RP):
 def check_domination(f1, f2):
     """
     Check Pareto domination relationship between two solutions f1 and f2.
-
     Returns:
-        1  if f1 check_domination f2
-       -1  if f2 check_domination f1
+        1  if f1 dominate f2
+       -1  if f2 dominate f1
         0  if non-dominated
         2  if f1 == f2
     """
-    f1 = np.array(f1)
-    f2 = np.array(f2)
-
-    if np.all(f1 == f2):
-        return 2
-    elif np.all(f1 <= f2) and np.any(f1 < f2):
+    f1 = np.asarray(f1)
+    f2 = np.asarray(f2)
+    if np.all(f1 <= f2) and np.any(f1 < f2):
         return 1
     elif np.all(f2 <= f1) and np.any(f2 < f1):
         return -1
+    elif np.all(f1 == f2):
+        return 2
     else:
         return 0
     
 # %% GET PARETO FRONT
+# function return pop
 def get_pareto_front(non_dom_pop):
     N = len(non_dom_pop)
     is_dominated = np.zeros(N, dtype=bool)
@@ -63,6 +62,29 @@ def get_pareto_front(non_dom_pop):
     pareto_front = [pareto_front_all[i] for i in unique_indices]
 
     return pareto_front
+# function return mask of pop
+def nondominated_front(F):
+    F = np.asarray(F)
+    n = F.shape[0]
+    if n == 0:
+        return np.array([], dtype=bool)
+    mask = np.ones(n, dtype=bool)
+    for i in range(n):
+        if not mask[i]:
+            continue
+        for j in range(n):
+            if j == i or not mask[j]:
+                continue
+            if check_domination(F[j], F[i]) == 1:
+                mask[i] = False
+                break
+        if mask[i]:
+            for j in range(n):
+                if j == i or not mask[j]:
+                    continue
+                if check_domination(F[i], F[j]) == 1:
+                    mask[j] = False
+    return mask
 
 # %% NON DOMINATED SORTING
 def NS_Sort(pop):
@@ -109,12 +131,10 @@ def NS_Sort(pop):
             break
         F.append(Q)
         k += 1
-
     return F
 
-
-def CD_calc(pop, F):
 # %% CROWDING DISTANCE CALCULATING
+def CD_calc(pop, F):
     nF = len(F)
 
     for k in range(nF):
@@ -145,11 +165,10 @@ def CD_calc(pop, F):
         # Gán tổng khoảng cách cho từng cá thể trong front
         for i in range(n):
             pop[front[i]]['CrowdingDistance'] = np.sum(d[i])
-# %%
     return pop
 
+# %% Sort based on CrowdingDistance (giảm dần)
 def sort_pop(pop):
-    # %% Sort based on CrowdingDistance (giảm dần)
     pop.sort(key=lambda p: p['CrowdingDistance'], reverse=True)
 
     # Sort based on Rank (tăng dần)

@@ -28,7 +28,29 @@ def Mutate(x, mu, sigma):
     x.flat[j] += noise  # dùng flat để đánh index 1 chiều
 
     return x
+# ---------- crossover ----------
 
+def crossover_binomial(x, v, Cr):
+    D = x.shape[0]
+    u = x.copy()
+    jrand = np.random.randint(0, D)
+    mask = np.random.rand(D) <= Cr
+    mask[jrand] = True
+    u[mask] = v[mask]
+    return u
+
+def crossover_exponential(x, v, Cr):
+    D = x.shape[0]
+    u = x.copy()
+    start = np.random.randint(0, D)
+    L = 0
+    while L < D:
+        j = (start + L) % D
+        u[j] = v[j]
+        L += 1
+        if np.random.rand() > Cr:
+            break
+    return u
 # %% ----------------------------
 # SBX crossover
 # ----------------------------

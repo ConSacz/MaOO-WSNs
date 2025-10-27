@@ -56,7 +56,7 @@ def mutation_current_to_phi_best_with_archive(pop, idx, phi_idx, r1_idx, r2_vec,
     x_phi = pop[phi_idx]['Position']
     x_r1 = pop[r1_idx]['Position']
     v = x_i + F * (x_phi - x_i + x_r1 - r2_vec)
-    return v
+    return v.flatten()
 
 def mutation_current_to_phi_best_no_archive(pop, idx, phi_idx, r1_idx, r3_idx, F):
     x_i = pop[idx]['Position']
@@ -64,11 +64,11 @@ def mutation_current_to_phi_best_no_archive(pop, idx, phi_idx, r1_idx, r3_idx, F
     x_r1 = pop[r1_idx]['Position']
     x_r3 = pop[r3_idx]['Position']
     v = x_i + F * (x_phi - x_i + x_r1 - x_r3)
-    return v  
+    return v.flatten()
 
 def mutation_weighted_rand_to_phi_best(pop, idx, x_phi, x_r1, x_r3, F):
     v = F * pop[x_r1]['Position'] + (pop[x_phi]['Position'] - pop[x_r3]['Position'])
-    return v
+    return v.flatten()
 
 # ---------- Problem ----------
 def obj_func(X, n_obj=3):
@@ -93,53 +93,35 @@ def obj_func(X, n_obj=3):
         F[i, :] = fi
     return F
 
-# %% ---------- Main Parameters ----------
-# algorithm parameter
+# ---------- Main Parameters ----------
 n_obj = 3
 dim = 12
-bounds = (0, 100)
-xl, xu = bounds
-max_fes = 10000
+bounds = (0, 1)
+max_fes = 20000
 seed = 2
-NP_init = 100
+NP_init = 200
 NP_min = 100
-archive_rate = 0.26
-# Network Parameter
-N = 60
-rc = 10
-stat = np.zeros((2, N))  # tạo mảng 2xN
-stat[1, 0] = rc         # rc
-rs = (8,12)
-sink = np.array([xu//2, xu//2])
+archive_rate = 2.6
+use_local_search = True
 
-# %% Initialization
 # rng
 global _rng
 _rng = np.random.default_rng(seed)
-
-# environment
-
-Covered_Area = np.zeros((xu, xu), dtype=int)
-Obstacle_Area = np.ones((xu, xu), dtype=int)
+xl, xu = bounds
+FES = 0
 
 # archive
 archive = []
 
 # population init
-FES = 0
 pop = []
 for _ in range(NP_init):
-    alpop = np.zeros((N, 3))
-    pos0 = np.random.uniform(sink[0]-rc/2, sink[1]+rc/2, (N, 2)) 
-    pos0[0] = sink
-    rs0 = np.random.uniform(rs[0], rs[1], (N, 1))
-    alpop[:,:2] = pos0
-    alpop[:,2] = rs0[:, 0]
-    alpop_cost = CostFunction_3F1C_MOO(alpop, stat, Obstacle_Area, Covered_Area.copy())
-    pop.append({'Position': alpop, 'Cost': alpop_cost})
+    pos = _rng.random(dim) * (xu - xl) + xl
+    cost = obj_func(pos.reshape(1, -1))[0]
+    pop.append({'Position': pos, 'Cost': cost})
 FES += NP_init
 
-archive_size = max(1, int(np.round(archive_rate * NP_min)))
+archive_size = max(1, int(np.round(archive_rate * dim)))
 
 # operator setup
 n_ops = 3
@@ -153,7 +135,7 @@ history = {'best': [], 'FES': []}
 
 gen = 0
 
-# %% ---------- Main loop ----------
+# ---------- Main loop ----------
 while FES < max_fes:
     gen += 1
     NP = len(pop)
@@ -191,7 +173,7 @@ while FES < max_fes:
             else:
                 u = crossover_exponential(pop[pid]['Position'], v, Cr_i)
 
-            fu = CostFunction_3F1C_MOO(u, stat, Obstacle_Area, Covered_Area.copy())[0]
+            fu = obj_func(u.reshape(1, -1))[0]
             FES += 1
 
             # selection
@@ -223,7 +205,7 @@ print("Nondominated count:", len(nd))
 
 # %%---------- Plot ----------
 
-F = np.array([ind['Cost'] for ind in pop])[:, 0]
+F = np.array([ind['Cost'] for ind in pop])
 points = F[:, :3]  # f1, f2, f3
 cloud = pv.PolyData(points)
 
@@ -248,3 +230,4 @@ plotter.add_axes(line_width=10)
 plotter.add_text("IMODE Pareto Front", position='upper_edge', font_size=14, color='black')
 plotter.view_vector((-35, -25, 1))  # try view_isometric(), view_yx(),...
 plotter.show(title="IMODE Pareto Front 3D")
+
