@@ -19,29 +19,25 @@ def CR_Func(pop, Obstacle_Area, Covered_Area):
 
     inside_sector = np.zeros_like(Covered_Area, dtype=bool)
     for j in range(pop.shape[0]):
-        # node position j-th
+        # %% node position j-th
         x0 = pop[j, 0]
         y0 = pop[j, 1]
         rsJ = pop[j, 2]
 
         # boundary constraint
-        x_ub = min(int(np.ceil(x0 + rsJ)), Covered_Area.shape[0])
+        x_ub = min(int(np.ceil(x0 + rsJ)), Covered_Area.shape[0]-1)
         x_lb = max(int(np.floor(x0 - rsJ)), 0)
-        y_ub = min(int(np.ceil(y0 + rsJ)), Covered_Area.shape[1])
+        y_ub = min(int(np.ceil(y0 + rsJ)), Covered_Area.shape[1]-1)
         y_lb = max(int(np.floor(y0 - rsJ)), 0)
 
-        # local grid
+        # %%local grid
         X, Y = np.meshgrid(
             np.linspace(x_lb, x_ub, x_ub - x_lb + 1),
             np.linspace(y_lb, y_ub, y_ub - y_lb + 1)
         )
 
-        # distance matrix
+        # %%distance matrix
         D = np.sqrt((X - x0) ** 2 + (Y - y0) ** 2)
-
-        # angle matrix
-        Theta = np.arctan2(Y - y0, X - x0)
-        Theta[Theta < 0] += 2 * np.pi
 
         # in rs condition
         in_circle = D <= rsJ
@@ -49,7 +45,7 @@ def CR_Func(pop, Obstacle_Area, Covered_Area):
         # both conditions
         inside_sector[y_lb:y_ub + 1, x_lb:x_ub + 1] |= (in_circle)
 
-    # covered area
+    # %%covered area
     Covered_Area = inside_sector.astype(int) * Obstacle_Area
 
     # add obstacle to covered area
@@ -64,7 +60,7 @@ def CR_Func(pop, Obstacle_Area, Covered_Area):
 
     coverage = 1 - (count1 - count2) / count3
 
-    # recover obs covered area
+    # %%recover obs covered area
     obs_row, obs_col = np.where(Covered_Area == -2)
     for i in range(len(obs_col)):
         Covered_Area[obs_row[i], obs_col[i]] = -1
@@ -155,7 +151,7 @@ def CE_Func(G):
                 Bat[path[i]] += (ER + ET + b * dt ** a + b * dr ** a)
 
     # Total Energy consumption
-    E = np.sum(Bat)
+    E = 10**(-6)*np.sum(Bat)
 
     return E
 

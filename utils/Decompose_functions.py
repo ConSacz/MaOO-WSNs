@@ -1,13 +1,6 @@
 import numpy as np
 #from Domination_functions import get_pareto_front
 
-def normalized(data):
-    x_sta = np.min(data, axis = 0)
-    x_nad = np.max(data, axis = 0)
-    data_normalized = (data - x_sta) / (x_nad - x_sta)
-    
-    return data_normalized
-
 # -------------------------
 # scalarizing: Tchebycheff
 # -------------------------

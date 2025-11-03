@@ -8,13 +8,16 @@ import numpy as np
 import pyvista as pv
 from utils.Domination_functions import check_domination, nondominated_front
 from utils.GA_functions import crossover_binomial, crossover_exponential
-from utils.Multi_objective_functions import CostFunction_3F1C_MOO
+from utils.Multi_objective_functions import CostFunction_2F1C_MOO
+from utils.Normalize_functions import global_normalized
+
 # %% ---------- dominance helpers ----------
 
-def prune_archive(archive, max_size):
+def prune_archive(archive, RP, max_size):
     if len(archive) <= max_size:
         return archive
-    F = np.array([ind['Cost'] for ind in archive])
+    F = np.array([ind['Cost'] for ind in archive])[:, 0]
+    F = global_normalized(F, RP)
     mask_nd = nondominated_front(F)
     nd_inds = [archive[i] for i, m in enumerate(mask_nd) if m]
     if len(nd_inds) <= max_size:
@@ -25,7 +28,7 @@ def prune_archive(archive, max_size):
             nd_inds += [rem[i] for i in order[:max_size - len(nd_inds)]]
         return nd_inds
     else:
-        nd_objs = np.array([ind['Cost'] for ind in nd_inds])
+        nd_objs = np.array([ind['Cost'] for ind in nd_inds])[:, 0]
         sums = np.sum(nd_objs, axis=1)
         order = np.argsort(sums)
         return [nd_inds[i] for i in order[:max_size]]
@@ -42,7 +45,7 @@ def clamp(X, xl, xu):
     return np.minimum(np.maximum(X, xl), xu)
 
 def get_phi_idx(pop):
-    F = np.array([ind['Cost'] for ind in pop])
+    F = np.array([ind['Cost'] for ind in pop])[:, 0]
     scores = np.sum(F, axis=1)
     N = len(pop)
     top_k = max(1, int(np.ceil(0.1 * N)))
@@ -70,47 +73,27 @@ def mutation_weighted_rand_to_phi_best(pop, idx, x_phi, x_r1, x_r3, F):
     v = F * pop[x_r1]['Position'] + (pop[x_phi]['Position'] - pop[x_r3]['Position'])
     return v
 
-# ---------- Problem ----------
-def obj_func(X, n_obj=3):
-    X = np.asarray(X)
-    if X.ndim == 1:
-        X = X.reshape(1, -1)
-    pop, nvar = X.shape
-    x1 = X[:, :n_obj - 1]
-    x2 = X[:, n_obj - 1:]
-    g = np.sum((x2 - 0.5) ** 2, axis=1)
-    F = np.zeros((pop, n_obj))
-    for i in range(pop):
-        xi = x1[i]
-        fi = []
-        for m in range(n_obj):
-            val = 1 + g[i]
-            for j in range(n_obj - m - 1):
-                val *= np.cos(xi[j] * np.pi / 2.0)
-            if m > 0:
-                val *= np.sin(xi[n_obj - m - 1] * np.pi / 2.0)
-            fi.append(val)
-        F[i, :] = fi
-    return F
-
+# ---------- Cost Function ----------
+def CostFunction(pop, stat, Obstacle_Area, Covered_Area):
+    return CostFunction_2F1C_MOO(pop, stat, Obstacle_Area, Covered_Area)
 # %% ---------- Main Parameters ----------
 # algorithm parameter
-n_obj = 3
-dim = 12
 bounds = (0, 100)
 xl, xu = bounds
-max_fes = 10000
+max_fes = 5000
 seed = 2
-NP_init = 100
+NP_init = 200
 NP_min = 100
-archive_rate = 0.26
+archive_rate = 0.5
 # Network Parameter
 N = 60
-rc = 10
+rc = 20
 stat = np.zeros((2, N))  # tạo mảng 2xN
 stat[1, 0] = rc         # rc
 rs = (8,12)
 sink = np.array([xu//2, xu//2])
+RP = np.zeros((2, 2))   # first col are ideal values
+RP[:,0] = [1, 1]        # second col are nadir values
 
 # %% Initialization
 # rng
@@ -118,7 +101,6 @@ global _rng
 _rng = np.random.default_rng(seed)
 
 # environment
-
 Covered_Area = np.zeros((xu, xu), dtype=int)
 Obstacle_Area = np.ones((xu, xu), dtype=int)
 
@@ -130,12 +112,14 @@ FES = 0
 pop = []
 for _ in range(NP_init):
     alpop = np.zeros((N, 3))
-    pos0 = np.random.uniform(sink[0]-rc/2, sink[1]+rc/2, (N, 2)) 
+    pos0 = np.random.uniform(0, 100, (N, 2)) 
     pos0[0] = sink
     rs0 = np.random.uniform(rs[0], rs[1], (N, 1))
     alpop[:,:2] = pos0
     alpop[:,2] = rs0[:, 0]
-    alpop_cost = CostFunction_3F1C_MOO(alpop, stat, Obstacle_Area, Covered_Area.copy())
+    alpop_cost = CostFunction(alpop, stat, Obstacle_Area, Covered_Area.copy())
+    RP[:,0] = np.minimum(RP[:,0], alpop_cost[0])
+    RP[:,1] = np.maximum(RP[:,1], alpop_cost[0])
     pop.append({'Position': alpop, 'Cost': alpop_cost})
 FES += NP_init
 
@@ -191,18 +175,21 @@ while FES < max_fes:
             else:
                 u = crossover_exponential(pop[pid]['Position'], v, Cr_i)
 
-            fu = CostFunction_3F1C_MOO(u, stat, Obstacle_Area, Covered_Area.copy())[0]
+            u_cost = CostFunction(u, stat, Obstacle_Area, Covered_Area.copy())
+            RP[:,0] = np.minimum(RP[:,0], u_cost[0])
+            RP[:,1] = np.maximum(RP[:,1], u_cost[0])
+            # u_cost = global_normalized(u_cost, RP)
             FES += 1
 
             # selection
-            if check_domination(fu, pop[pid]['Cost']) == 1:
+            if check_domination(u_cost, pop[pid]['Cost']) == 1:
                 archive.append(pop[pid].copy())
                 if len(archive) > archive_size:
-                    archive = prune_archive(archive, archive_size)
-                pop[pid] = {'Position': u, 'Cost': fu}
+                    archive = prune_archive(archive, RP, archive_size)
+                pop[pid] = {'Position': u, 'Cost': u_cost}
 
     # best individual
-    F = np.array([ind['Cost'] for ind in pop])
+    F = np.array([ind['Cost'] for ind in pop])[:, 0]
     nd_mask = nondominated_front(F)
     nd_indices = np.where(nd_mask)[0]
     if len(nd_indices) > 0:
@@ -217,7 +204,7 @@ while FES < max_fes:
     print(f"Gen {gen}, FES={FES}")
 
 # ---------- Final results ----------
-nd_mask = nondominated_front(np.array([ind['Cost'] for ind in pop]))
+nd_mask = nondominated_front(np.array([ind['Cost'] for ind in pop])[:, 0])
 nd = [pop[i] for i, m in enumerate(nd_mask) if m]
 print("Nondominated count:", len(nd))
 
@@ -225,7 +212,17 @@ print("Nondominated count:", len(nd))
 
 F = np.array([ind['Cost'] for ind in pop])[:, 0]
 points = F[:, :3]  # f1, f2, f3
-cloud = pv.PolyData(points)
+#cloud = pv.PolyData(points)
+
+# scaling points
+mins = points.min(axis=0)
+maxs = points.max(axis=0)
+ranges = maxs - mins
+max_range = ranges.max()
+ranges_safe = np.where(ranges == 0, 1.0, ranges)
+scale_factors = max_range / ranges_safe
+points_scaled = (points - mins) * scale_factors
+cloud = pv.PolyData(points_scaled)
 
 # gen plotter
 plotter = pv.Plotter()
@@ -243,8 +240,11 @@ plotter.show_grid(
     grid='back',     # vẽ lưới phía sau điểm
     location='outer' # hiển thị nhãn ngoài khung
 )
+
+
+
 plotter.show_bounds(grid='front', color='black')
 plotter.add_axes(line_width=10)
-plotter.add_text("IMODE Pareto Front", position='upper_edge', font_size=14, color='black')
+plotter.add_text("IMDEA Pareto Front", position='upper_edge', font_size=14, color='black')
 plotter.view_vector((-35, -25, 1))  # try view_isometric(), view_yx(),...
-plotter.show(title="IMODE Pareto Front 3D")
+plotter.show(title="IMDEA Pareto Front 3D")
