@@ -5,11 +5,11 @@ except:
     pass
 # %%
 import numpy as np
-import pyvista as pv
 from utils.Domination_functions import check_domination, nondominated_front
 from utils.GA_functions import crossover_binomial, crossover_exponential
-from utils.Multi_objective_functions import CostFunction_2F1C_MOO
+from utils.Multi_objective_functions import CostFunction_3F1C_MOO
 from utils.Normalize_functions import global_normalized
+from utils.Plot_functions import plot2D, plot3D, plot3D_adjustable
 
 # %% ---------- dominance helpers ----------
 
@@ -74,13 +74,13 @@ def mutation_weighted_rand_to_phi_best(pop, idx, x_phi, x_r1, x_r3, F):
     return v
 
 # ---------- Cost Function ----------
-def CostFunction(pop, stat, Obstacle_Area, Covered_Area):
-    return CostFunction_2F1C_MOO(pop, stat, Obstacle_Area, Covered_Area)
+def CostFunction(pop, stat, RP, Obstacle_Area, Covered_Area):
+    return CostFunction_3F1C_MOO(pop, stat, RP, Obstacle_Area, Covered_Area)
 # %% ---------- Main Parameters ----------
 # algorithm parameter
 bounds = (0, 100)
 xl, xu = bounds
-max_fes = 5000
+max_fes = 10000
 seed = 2
 NP_init = 200
 NP_min = 100
@@ -88,12 +88,13 @@ archive_rate = 0.5
 # Network Parameter
 N = 60
 rc = 20
-stat = np.zeros((2, N))  # tạo mảng 2xN
+stat = np.zeros((2, N), dtype=float)  # tạo mảng 2xN
 stat[1, 0] = rc         # rc
 rs = (8,12)
 sink = np.array([xu//2, xu//2])
-RP = np.zeros((2, 2))   # first col are ideal values
-RP[:,0] = [1, 1]        # second col are nadir values
+RP = np.zeros((3, 2))   
+RP[:,0] = [1, 1, 1]          # first col are ideal values
+RP[:,0] = [0.1, 0.1, 0.1]    # second col are nadir values
 
 # %% Initialization
 # rng
@@ -112,12 +113,12 @@ FES = 0
 pop = []
 for _ in range(NP_init):
     alpop = np.zeros((N, 3))
-    pos0 = np.random.uniform(0, 100, (N, 2)) 
+    pos0 = np.random.uniform(10, 90, (N, 2)) 
     pos0[0] = sink
     rs0 = np.random.uniform(rs[0], rs[1], (N, 1))
     alpop[:,:2] = pos0
     alpop[:,2] = rs0[:, 0]
-    alpop_cost = CostFunction(alpop, stat, Obstacle_Area, Covered_Area.copy())
+    alpop_cost = CostFunction(alpop, stat, RP, Obstacle_Area, Covered_Area.copy())
     RP[:,0] = np.minimum(RP[:,0], alpop_cost[0])
     RP[:,1] = np.maximum(RP[:,1], alpop_cost[0])
     pop.append({'Position': alpop, 'Cost': alpop_cost})
@@ -175,7 +176,7 @@ while FES < max_fes:
             else:
                 u = crossover_exponential(pop[pid]['Position'], v, Cr_i)
 
-            u_cost = CostFunction(u, stat, Obstacle_Area, Covered_Area.copy())
+            u_cost = CostFunction(u, stat, RP, Obstacle_Area, Covered_Area.copy())
             RP[:,0] = np.minimum(RP[:,0], u_cost[0])
             RP[:,1] = np.maximum(RP[:,1], u_cost[0])
             # u_cost = global_normalized(u_cost, RP)
@@ -202,7 +203,7 @@ while FES < max_fes:
     history['FES'].append(FES)
 
     print(f"Gen {gen}, FES={FES}")
-
+    plot3D(pop)
 # ---------- Final results ----------
 nd_mask = nondominated_front(np.array([ind['Cost'] for ind in pop])[:, 0])
 nd = [pop[i] for i, m in enumerate(nd_mask) if m]
@@ -210,41 +211,4 @@ print("Nondominated count:", len(nd))
 
 # %%---------- Plot ----------
 
-F = np.array([ind['Cost'] for ind in pop])[:, 0]
-points = F[:, :3]  # f1, f2, f3
-#cloud = pv.PolyData(points)
-
-# scaling points
-mins = points.min(axis=0)
-maxs = points.max(axis=0)
-ranges = maxs - mins
-max_range = ranges.max()
-ranges_safe = np.where(ranges == 0, 1.0, ranges)
-scale_factors = max_range / ranges_safe
-points_scaled = (points - mins) * scale_factors
-cloud = pv.PolyData(points_scaled)
-
-# gen plotter
-plotter = pv.Plotter()
-plotter.add_points(
-    cloud,
-    color="blue",                # color
-    point_size=8,                # size
-    render_points_as_spheres=True  # sphere point
-)
-plotter.show_grid(
-    xtitle='f1',
-    ytitle='f2',
-    ztitle='f3',
-    color='gray',
-    grid='back',     # vẽ lưới phía sau điểm
-    location='outer' # hiển thị nhãn ngoài khung
-)
-
-
-
-plotter.show_bounds(grid='front', color='black')
-plotter.add_axes(line_width=10)
-plotter.add_text("IMDEA Pareto Front", position='upper_edge', font_size=14, color='black')
-plotter.view_vector((-35, -25, 1))  # try view_isometric(), view_yx(),...
-plotter.show(title="IMDEA Pareto Front 3D")
+plot3D_adjustable(pop)
