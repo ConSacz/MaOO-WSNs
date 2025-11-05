@@ -80,7 +80,7 @@ def CostFunction(pop, stat, RP, Obstacle_Area, Covered_Area):
 # algorithm parameter
 bounds = (0, 100)
 xl, xu = bounds
-max_fes = 10000
+max_fes = 50000
 seed = 2
 NP_init = 200
 NP_min = 100
@@ -98,7 +98,6 @@ RP[:,0] = [0.1, 0.1, 0.1]    # second col are nadir values
 
 # %% Initialization
 # rng
-global _rng
 _rng = np.random.default_rng(seed)
 
 # environment

@@ -3,6 +3,7 @@ import pyvista as pv
 import matplotlib.pyplot as plt
 from .Domination_functions import get_pareto_front
 
+# %%
 def plot2D(pop):
     Front = np.array([ind['Cost'].flatten() for ind in get_pareto_front(pop)])  # mỗi ind là dict có key 'Cost'
     F_set = np.array([ind['Cost'].flatten() for ind in pop])
@@ -28,7 +29,7 @@ def plot2D(pop):
     # Cập nhật đồ thị theo từng iteration
     plt.pause(0.001)
 
-def plot3D(pop):
+def plot3D(pop, W = None):
     # mỗi ind là dict có key 'Cost'
     Front = np.array([ind['Cost'].flatten() for ind in get_pareto_front(pop)])
     F_set = np.array([ind['Cost'].flatten() for ind in pop])
@@ -43,10 +44,14 @@ def plot3D(pop):
 
     # vẽ pareto front
     ax.scatter(Front[:, 0], Front[:, 1], Front[:, 2], c='b', marker='o', label='PF')
-
+    
+    # draw Reference point
+    if W is not None:
+        ax.scatter(W[:, 0], W[:, 1], W[:, 2], c='r', marker='o', label='PF')
+    
     # nhãn trục
     ax.set_xlabel('Non-coverage')
-    ax.set_ylabel('Energy')
+    ax.set_ylabel('Communication Energy')
     ax.set_zlabel('Sensing Energy')
 
     # legend
@@ -57,25 +62,36 @@ def plot3D(pop):
 
  
 def plot3D_adjustable(pop):
-    F = np.array([ind['Cost'] for ind in pop])[:, 0]
-    points = F[:, :3]  # f1, f2, f3
-    #cloud = pv.PolyData(points)
+    Front = np.array([ind['Cost'].flatten() for ind in get_pareto_front(pop)])
+    F_set = np.array([ind['Cost'].flatten() for ind in pop])
+    points = Front[:, :3]  # f1, f2, f3
+    set_points = F_set[:, :3]
+    # cloud = pv.PolyData(points)
+    # cloud2 = pv.PolyData(set_points)
     
-    # scaling points
-    mins = points.min(axis=0)
-    maxs = points.max(axis=0)
+    # # scaling points
+    mins = set_points.min(axis=0)
+    maxs = set_points.max(axis=0)
     ranges = maxs - mins
     max_range = ranges.max()
     ranges_safe = np.where(ranges == 0, 1.0, ranges)
     scale_factors = max_range / ranges_safe
     points_scaled = (points - mins) * scale_factors
+    points2_scaled = (set_points - mins) * scale_factors
     cloud = pv.PolyData(points_scaled)
+    cloud2 = pv.PolyData(points2_scaled)
     
     # gen plotter
     plotter = pv.Plotter()
     plotter.add_points(
         cloud,
         color="blue",                # color
+        point_size=8,                # size
+        render_points_as_spheres=True  # sphere point
+    )
+    plotter.add_points(
+        cloud2,
+        color="green",                # color
         point_size=8,                # size
         render_points_as_spheres=True  # sphere point
     )
