@@ -9,7 +9,7 @@ from utils.Domination_functions import check_domination, nondominated_front
 from utils.GA_functions import crossover_binomial, crossover_exponential
 from utils.Multi_objective_functions import CostFunction_3F1C_MOO
 from utils.Normalize_functions import global_normalized
-from utils.Plot_functions import plot2D, plot3D, plot3D_adjustable
+from utils.Plot_functions import plot3D, plot3D_adjustable
 
 # %% ---------- dominance helpers ----------
 
@@ -34,15 +34,6 @@ def prune_archive(archive, RP, max_size):
         return [nd_inds[i] for i in order[:max_size]]
 
 # ---------- helpers ----------
-
-def ensure_2d(x):
-    x = np.asarray(x)
-    if x.ndim == 1:
-        return x.reshape(1, -1)
-    return x
-
-def clamp(X, xl, xu):
-    return np.minimum(np.maximum(X, xl), xu)
 
 def get_phi_idx(pop):
     F = np.array([ind['Cost'] for ind in pop])[:, 0]
@@ -76,6 +67,7 @@ def mutation_weighted_rand_to_phi_best(pop, idx, x_phi, x_r1, x_r3, F):
 # ---------- Cost Function ----------
 def CostFunction(pop, stat, RP, Obstacle_Area, Covered_Area):
     return CostFunction_3F1C_MOO(pop, stat, RP, Obstacle_Area, Covered_Area)
+
 # %% ---------- Main Parameters ----------
 # algorithm parameter
 bounds = (0, 100)
@@ -94,7 +86,7 @@ rs = (8,12)
 sink = np.array([xu//2, xu//2])
 RP = np.zeros((3, 2))   
 RP[:,0] = [1, 1, 1]          # first col are ideal values
-RP[:,0] = [0.1, 0.1, 0.1]    # second col are nadir values
+RP[:,1] = [0.00001, 0.00001, 0.00001]    # second col are nadir values
 
 # %% Initialization
 # rng
@@ -169,7 +161,7 @@ while FES < max_fes:
             else:
                 v = mutation_weighted_rand_to_phi_best(pop, pid, phi_idx, r1_idx, r3_idx, F_i)
 
-            v = clamp(v, xl, xu)
+            v = np.minimum(np.maximum(v, xl), xu)
             if _rng.random() <= 0.5:
                 u = crossover_binomial(pop[pid]['Position'], v, Cr_i)
             else:

@@ -1,5 +1,24 @@
 MOEA-D-DU 2016
+- DU update: tchebycheff?
+
+
+
 NSGA3_OSD 2017
+
+
+
+
 NSGA3 2014
+
+
+
+
 RVEA 2016
+
+
+
+
 IMDEA 2020
+- prune archive with normalized pop
+
+

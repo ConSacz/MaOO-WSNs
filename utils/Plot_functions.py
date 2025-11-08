@@ -3,7 +3,38 @@ import pyvista as pv
 import matplotlib.pyplot as plt
 from .Domination_functions import get_pareto_front
 
-# %%
+# %% plot deployment
+def plot_deployment2D(pop, Obstacle_Area, Covered_Area):
+    N = pop.shape[0]
+    
+    plt.clf()
+    obs_row, obs_col = np.where(Obstacle_Area == 1)
+    plt.plot(obs_col, obs_row, '.', markersize=0.1, color='blue')
+    obs_row, obs_col = np.where(Obstacle_Area == 0)
+    plt.plot(obs_col, obs_row, '.', markersize=2, color='black')
+    discovered_obs_row, discovered_obs_col = np.where(Covered_Area == -1)
+    plt.plot(discovered_obs_col, discovered_obs_row, '.', markersize=2, color='red')
+    #discovered_row, discovered_col = np.where(Covered_Area == 1)
+    #plt.plot(discovered_col, discovered_row, '.', markersize=5, color='green')
+
+    theta = np.linspace(0, 2*np.pi, 500)
+    for i in range(N):
+        plt.plot(pop[i,1], pop[i,0], 'o', markersize=3, color='blue')
+        plt.text(pop[i,1], pop[i,0], str(i+1), fontsize=10, color='red')
+        x = pop[i,1] + pop[i,2] * np.cos(theta)
+        y = pop[i,0] + pop[i,2] * np.sin(theta)
+        plt.fill(x, y, color=(0.6, 1, 0.6), alpha=0.2, edgecolor='k')
+        
+    del x, y, theta
+    plt.xlim([0, Obstacle_Area.shape[1]])
+    plt.ylim([0, Obstacle_Area.shape[0]])
+    #plt.title(f"{BestCostIt[it]*100:.2f}% at time step: {it}")
+    plt.gca().invert_yaxis()
+    plt.grid(True)
+    plt.pause(0.001)
+
+
+# %% plot 2D
 def plot2D(pop):
     Front = np.array([ind['Cost'].flatten() for ind in get_pareto_front(pop)])  # mỗi ind là dict có key 'Cost'
     F_set = np.array([ind['Cost'].flatten() for ind in pop])
@@ -29,6 +60,7 @@ def plot2D(pop):
     # Cập nhật đồ thị theo từng iteration
     plt.pause(0.001)
 
+# %% plot 3D
 def plot3D(pop, W = None):
     # mỗi ind là dict có key 'Cost'
     Front = np.array([ind['Cost'].flatten() for ind in get_pareto_front(pop)])
@@ -43,12 +75,14 @@ def plot3D(pop, W = None):
     ax.scatter(F_set[:, 0], F_set[:, 1], F_set[:, 2], c='g', marker='o', label='Population')
 
     # vẽ pareto front
-    ax.scatter(Front[:, 0], Front[:, 1], Front[:, 2], c='b', marker='o', label='PF')
+    ax.scatter(Front[:, 0], Front[:, 1], Front[:, 2], c='r', marker='o', label='PF')
     
     # draw Reference point
-    if W is not None:
-        ax.scatter(W[:, 0], W[:, 1], W[:, 2], c='r', marker='o', label='PF')
+    # if W is not None:
+    #     ax.scatter(W[:, 0], W[:, 1], W[:, 2], c='r', marker='o', label='PF')
     
+    ax.view_init(elev=20, azim=190)
+
     # nhãn trục
     ax.set_xlabel('Non-coverage')
     ax.set_ylabel('Communication Energy')
@@ -60,7 +94,7 @@ def plot3D(pop, W = None):
     # hiển thị tạm để cập nhật liên tục theo iteration
     plt.pause(0.001)
 
- 
+# %% plot 3D adjustable figure
 def plot3D_adjustable(pop):
     Front = np.array([ind['Cost'].flatten() for ind in get_pareto_front(pop)])
     F_set = np.array([ind['Cost'].flatten() for ind in pop])
@@ -85,7 +119,7 @@ def plot3D_adjustable(pop):
     plotter = pv.Plotter()
     plotter.add_points(
         cloud,
-        color="blue",                # color
+        color="red",                # color
         point_size=8,                # size
         render_points_as_spheres=True  # sphere point
     )
@@ -108,3 +142,5 @@ def plot3D_adjustable(pop):
     plotter.add_text("IMDEA Pareto Front", position='upper_edge', font_size=14, color='black')
     plotter.view_vector((-35, -25, 1))  # try view_isometric(), view_yx(),...
     plotter.show(title="IMDEA Pareto Front 3D")
+    
+    

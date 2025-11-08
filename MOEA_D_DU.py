@@ -10,7 +10,7 @@ except:
 import numpy as np
 from utils.Decompose_functions import das_dennis_generate, tchebycheff, vertical_distance
 from utils.Multi_objective_functions import CostFunction_3F1C_MOO
-from utils.Plot_functions import plot3D, plot3D_adjustable
+from utils.Plot_functions import plot3D, plot3D_adjustable, plot_deployment2D
 
 # %% DE operator variant that works directly from pop (rand/1/bin)
 # returns children positions array shape (nPop, D)
@@ -67,7 +67,7 @@ rs = (8,12)
 sink = np.array([xmax//2, xmax//2])
 RP = np.zeros((3, 2))   
 RP[:,0] = [1, 1, 1]          # first col are ideal values
-RP[:,0] = [0.1, 0.1, 0.1]    # second col are nadir values
+RP[:,1] = [0.00001, 0.00001, 0.00001]    # second col are nadir values
 
 # %% Initialization
 if seed is not None:
@@ -95,7 +95,7 @@ Obstacle_Area = np.ones((xmax, xmax), dtype=int)
 pop = []
 for _ in range(nPop):
     alpop = np.zeros((N, 3))
-    pos0 = np.random.uniform(10, 90, (N, 2))
+    pos0 = np.random.uniform(20, 80, (N, 2))
     pos0[0] = sink
     rs0 = np.random.uniform(rs[0], rs[1], (N, 1))
     alpop[:,:2] = pos0
@@ -106,7 +106,8 @@ for _ in range(nPop):
     pop.append({'Position': alpop, 'Cost': alpop_cost})
 
 # ideal point
-z = np.min(pop_costs(pop), axis=0)
+RP[:,0] = (np.min(pop_costs(pop), axis=0)).T.flatten()
+RP[:,1] = (np.max(pop_costs(pop), axis=0)).T.flatten()
 
 # %% main loop
 for gen in range(max_gen):
@@ -114,34 +115,36 @@ for gen in range(max_gen):
     U = de_rand1_bin_pop(pop, CR=CR, xmin=xmin, xmax=xmax)  # (nPop, D)
     FU = np.array([CostFunction_3F1C_MOO(U[i], stat, RP, Obstacle_Area, Covered_Area.copy()) for i in range(nPop)])     # (nPop, n_obj)
     
-    # update ideal point
+    # update reference point
     F = FU[:,0]
-    z = np.minimum(z, np.min(FU, axis=0))
-    
+    z0 = np.minimum(RP[:,0].reshape(1,-1), np.min(FU, axis=0))
+    z1 = np.maximum(RP[:,1].reshape(1,-1), np.max(FU, axis=0))
+    RP[:,0] = z0.T.flatten()
+    RP[:,1] = z1.T.flatten()
 
     # for each subproblem i, apply DU update using its neighborhood
-    # for i in range(nPop):
-    #     child_pos = U[i].copy()
-    #     child_f = FU[i].copy()
-    #     cand_idx = neighborhoods[i].copy()
+    for i in range(nPop):
+        child_pos = U[i].copy()
+        child_f = FU[i].copy()
+        cand_idx = neighborhoods[i].copy()
 
-    #     # compute vertical distance between candidate solutions' objectives and their weight vectors
-    #     dists = np.zeros_like(cand_idx, dtype=float)
-    #     for k, j in enumerate(cand_idx):
-    #         dists[k] = vertical_distance(pop[j]['Cost'], W[j], ref=z)
+        # compute vertical distance between candidate solutions' objectives and their weight vectors
+        dists = np.zeros_like(cand_idx, dtype=float)
+        for k, j in enumerate(cand_idx):
+            dists[k] = vertical_distance(pop[j]['Cost'], W[j], ref=z0)
 
-    #     order = np.argsort(dists)  # ascending
-    #     replaced = 0
-    #     for idx_in_order in order:
-    #         j = cand_idx[idx_in_order]
-    #         val_child = tchebycheff(child_f, W[j], z)
-    #         val_j = tchebycheff(pop[j]['Cost'], W[j], z)
-    #         if val_child < val_j:
-    #             pop[j]['Position'] = child_pos.copy()
-    #             pop[j]['Cost'] = child_f.copy()
-    #             replaced += 1
-    #             if replaced >= nr:
-    #                 break
+        order = np.argsort(dists)  # ascending
+        replaced = 0
+        for idx_in_order in order:
+            j = cand_idx[idx_in_order]
+            val_child = tchebycheff(child_f, W[j], z0)
+            val_j = tchebycheff(pop[j]['Cost'], W[j], z0)
+            if val_child < val_j:
+                pop[j]['Position'] = child_pos.copy()
+                pop[j]['Cost'] = child_f.copy()
+                replaced += 1
+                if replaced >= nr:
+                    break
 
     # optional: shuffle subproblems to avoid bias
     perm = np.random.permutation(nPop)

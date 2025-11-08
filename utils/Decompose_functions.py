@@ -1,11 +1,13 @@
 import numpy as np
+from .Normalize_functions import global_normalized
 #from Domination_functions import get_pareto_front
 
 # -------------------------
 # scalarizing: Tchebycheff
 # -------------------------
-def tchebycheff(f, w, z):
-    diff = np.abs(f - z)
+def tchebycheff(f, w, RP):
+    #diff = np.abs(f - z)
+    diff = global_normalized(f, RP)
     w_safe = np.where(w == 0, 1e-12, w)
     return np.max(diff / w_safe)
 
