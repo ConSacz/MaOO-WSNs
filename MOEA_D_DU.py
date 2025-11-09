@@ -137,8 +137,8 @@ for gen in range(max_gen):
         replaced = 0
         for idx_in_order in order:
             j = cand_idx[idx_in_order]
-            val_child = tchebycheff(child_f, W[j], z0)
-            val_j = tchebycheff(pop[j]['Cost'], W[j], z0)
+            val_child = tchebycheff(child_f, W[j], RP)
+            val_j = tchebycheff(pop[j]['Cost'], W[j], RP)
             if val_child < val_j:
                 pop[j]['Position'] = child_pos.copy()
                 pop[j]['Cost'] = child_f.copy()
