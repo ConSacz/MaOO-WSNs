@@ -51,7 +51,7 @@ def pop_costs(pop):
 # algorithm parameter
 n_obj = 3
 nPop = 200
-max_gen = 100
+max_fes = 50000
 neigh_size = 20
 nr = 2
 CR = 0.9
@@ -92,6 +92,7 @@ Covered_Area = np.zeros((xmax, xmax), dtype=int)
 Obstacle_Area = np.ones((xmax, xmax), dtype=int)
 
 # 2) initialize pop
+FES=0
 pop = []
 for _ in range(nPop):
     alpop = np.zeros((N, 3))
@@ -104,17 +105,19 @@ for _ in range(nPop):
     RP[:,0] = np.minimum(RP[:,0], alpop_cost[0])
     RP[:,1] = np.maximum(RP[:,1], alpop_cost[0])
     pop.append({'Position': alpop, 'Cost': alpop_cost})
-
+FES += nPop
 # ideal point
 RP[:,0] = (np.min(pop_costs(pop), axis=0)).T.flatten()
 RP[:,1] = (np.max(pop_costs(pop), axis=0)).T.flatten()
 
 # %% main loop
-for gen in range(max_gen):
+gen = 0
+while FES < max_fes:
+    gen+=1
     # create offspring positions via DE (one offspring per subproblem)
     U = de_rand1_bin_pop(pop, CR=CR, xmin=xmin, xmax=xmax)  # (nPop, D)
     FU = np.array([CostFunction_3F1C_MOO(U[i], stat, RP, Obstacle_Area, Covered_Area.copy()) for i in range(nPop)])     # (nPop, n_obj)
-    
+    FES += nPop
     # update reference point
     F = FU[:,0]
     z0 = np.minimum(RP[:,0].reshape(1,-1), np.min(FU, axis=0))
@@ -155,9 +158,9 @@ for gen in range(max_gen):
     neighborhoods = np.argsort(distW, axis=1)[:, :neigh_size]
 
     # logging
-    print(f"Gen {gen+1:4d}: pop size {len(pop)}")
-
-    # %%plot final front from pop
+    print(f"Gen {gen}, FES: {FES}: pop size {len(pop)}")
     plot3D(pop)
-
-plot3D_adjustable(pop)
+    
+# %%---------- final Plot ----------
+plot_name = 'MOEA-D-DU'
+plot3D_adjustable(pop, plot_name)
