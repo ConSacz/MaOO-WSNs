@@ -195,11 +195,7 @@ while FES < max_fes:
 
     print(f"Gen {gen}, FES={FES}")
     plot3D(pop)
-# ---------- Final results ----------
-nd_mask = nondominated_front(np.array([ind['Cost'] for ind in pop])[:, 0])
-nd = [pop[i] for i, m in enumerate(nd_mask) if m]
-print("Nondominated count:", len(nd))
 
-# %%---------- Plot ----------
-
-plot3D_adjustable(pop)
+# %%---------- final Plot ----------
+plot_name = 'IMDEA'
+plot3D_adjustable(pop, plot_name)
