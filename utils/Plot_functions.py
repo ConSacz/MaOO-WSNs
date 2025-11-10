@@ -95,7 +95,7 @@ def plot3D(pop, W = None):
     plt.pause(0.001)
 
 # %% plot 3D adjustable figure
-def plot3D_adjustable(pop):
+def plot3D_adjustable(pop, name):
     Front = np.array([ind['Cost'].flatten() for ind in get_pareto_front(pop)])
     F_set = np.array([ind['Cost'].flatten() for ind in pop])
     points = Front[:, :3]  # f1, f2, f3
@@ -118,17 +118,18 @@ def plot3D_adjustable(pop):
     # gen plotter
     plotter = pv.Plotter()
     plotter.add_points(
-        cloud,
-        color="red",                # color
-        point_size=8,                # size
-        render_points_as_spheres=True  # sphere point
-    )
-    plotter.add_points(
         cloud2,
         color="green",                # color
         point_size=8,                # size
         render_points_as_spheres=True  # sphere point
     )
+    plotter.add_points(
+        cloud,
+        color="red",                # color
+        point_size=8,                # size
+        render_points_as_spheres=True  # sphere point
+    )
+
     plotter.show_grid(
         xtitle='f1',
         ytitle='f2',
@@ -139,8 +140,8 @@ def plot3D_adjustable(pop):
     )
     plotter.show_bounds(grid='front', color='black')
     plotter.add_axes(line_width=10)
-    plotter.add_text("IMDEA Pareto Front", position='upper_edge', font_size=14, color='black')
+    #plotter.add_text("IMDEA Pareto Front", position='upper_edge', font_size=14, color='black')
     plotter.view_vector((-35, -25, 1))  # try view_isometric(), view_yx(),...
-    plotter.show(title="IMDEA Pareto Front 3D")
+    plotter.show(title=f"{name} Pareto Front 3D")
     
     
