@@ -5,50 +5,43 @@ except:
     pass
 
 import numpy as np
-import pyvista as pv
 from utils.Domination_functions import NS_Sort
 from utils.GA_functions import sbx_crossover, polynomial_mutation
 from utils.Decompose_functions import das_dennis_generate
+from utils.Multi_objective_functions import CostFunction_3F1C_MOO
+from utils.Plot_functions import plot3D, plot3D_adjustable
 
-
+# %%============================================================
+# OSD 
 # ============================================================
-# OSD without sklearn
-# ============================================================
 
-def associate_to_reference_OSD(F, ref_dirs, ideal):
+def associate_to_reference(F, W, ideal):
     Z = F - ideal
-    # Normalize objective vectors
-    Znorm = Z / (np.linalg.norm(Z, axis=1, keepdims=True) + 1e-12)
-    # Normalize ref directions
-    rd = ref_dirs / (np.linalg.norm(ref_dirs, axis=1, keepdims=True) + 1e-12)
+    Znorm = Z / (np.max(np.abs(Z), axis=0, keepdims=True) + 1e-12)
+    rd = W / (np.linalg.norm(W, axis=1, keepdims=True) + 1e-12)
+    projections = np.dot(Znorm, rd.T)
+    proj_vecs = projections[:, :, None] * rd[None, :, :]
+    perps = np.linalg.norm(Znorm[:, None, :] - proj_vecs, axis=2)
+    ref_idx = np.argmin(perps, axis=1)
+    dist = perps[np.arange(perps.shape[0]), ref_idx]
+    return ref_idx, dist
 
-    # Similarity projection
-    proj = np.dot(Znorm, rd.T)
-    proj_vec = proj[:, :, None] * rd[None, :, :]
-    # perpendicular distance as diversity measure
-    dist = np.linalg.norm(Znorm[:, None, :] - proj_vec, axis=2)
-
-    ref_idx = np.argmin(dist, axis=1)
-    d_perp = dist[np.arange(dist.shape[0]), ref_idx]
-
-    return ref_idx, d_perp
-
-def osd_selection(F, fronts, pop_size, ideal, ref_dirs):
+def osd_selection(F, fronts, nPop, ideal, W):
     chosen = []
 
     for front in fronts:
-        if len(chosen) + len(front) <= pop_size:
+        if len(chosen) + len(front) <= nPop:
             chosen.extend(front)
         else:
-            needed = pop_size - len(chosen)
+            needed = nPop - len(chosen)
             last = np.array(front)
             lastF = F[last]
 
             # Decomposition assignment
-            ref_idx, dpp = associate_to_reference_OSD(lastF, ref_dirs, ideal)
+            ref_idx, dpp = associate_to_reference(lastF, W, ideal)
 
             selected = []
-            K = ref_dirs.shape[0]
+            K = W.shape[0]
 
             # chọn mỗi region một đại diện (nhỏ nhất dpp)
             for k in range(K):
@@ -72,65 +65,88 @@ def osd_selection(F, fronts, pop_size, ideal, ref_dirs):
 
     return chosen
 
+# ---------- Cost Function 3 functions 1 constraint
+def CostFunction(pop, stat, RP, Obstacle_Area, Covered_Area):
+    return CostFunction_3F1C_MOO(pop, stat, RP, Obstacle_Area, Covered_Area)
 
 
-# ============================================================
-# Problem definition (unchanged)
-# ============================================================
-def problem_eval(x):
-    x = np.atleast_2d(x)
-    g = np.sum((x[:, 2:] - 0.5) ** 2, axis=1)
-    f1 = (1 + g) * np.cos(0.5 * np.pi * x[:, 0]) * np.cos(0.5 * np.pi * x[:, 1])
-    f2 = (1 + g) * np.cos(0.5 * np.pi * x[:, 0]) * np.sin(0.5 * np.pi * x[:, 1])
-    f3 = (1 + g) * np.sin(0.5 * np.pi * x[:, 0])
-    return np.vstack([f1, f2, f3]).T.squeeze()
-
-
-# ============================================================
+# %%============================================================
 # Main NSGA-III-OSD loop
 # ============================================================
-D = 12
 n_obj = 3
-pop_size = 100
-max_gen = 100
-xmin = np.zeros(D)
-xmax = np.ones(D)
-ref_divisions = 11
+nPop = 200
+max_fes = 50000
+p_ref = 19
 sbx_eta = 30
 mut_eta = 20
 pm = None
-seed = 3
+seed = 1
+xl=0
+xu=100
 
+# Network Parameter
+N = 60
+rc = 20
+stat = np.zeros((2, N), dtype=float)  # tạo mảng 2xN
+stat[1, 0] = rc         # rc
+rs = (8,12)
+sink = np.array([xu//2, xu//2])
+RP = np.zeros((3, 2))   
+RP[:,0] = [1, 1, 1]          # first col are ideal values
+RP[:,1] = [0.00001, 0.00001, 0.00001]    # second col are nadir values
+
+xmin = np.ones((N,3))*xl
+xmin[:,2] = (np.ones((N,1))*rs[0]).flatten()
+xmax = np.ones((N,3))*xu
+xmax[:,2] = (np.ones((N,1))*rs[1]).flatten()
+
+# %% Initilization
 if seed is not None:
     np.random.seed(seed)
 
-# keep ref_dirs for comparability (not used in OSD)
-ref_dirs = das_dennis_generate(n_obj, ref_divisions)
+# keep W for comparability (not used in OSD)
+W = das_dennis_generate(n_obj, p_ref)
 
-# %% initialize pop
+# environment
+Covered_Area = np.zeros((xu, xu), dtype=int)
+Obstacle_Area = np.ones((xu, xu), dtype=int)
+
+# population init
+FES = 0
 pop = []
-for i in range(pop_size):
-    position = np.random.rand(D) * (xmax - xmin) + xmin
-    cost = problem_eval(position)
-    ind = {'Position': position, 'Cost': cost,
-           'DominationSet': set(), 'DominationCount': 0, 'Rank': 0}
-    pop.append(ind)
+for k in range(nPop):
+    alpop = np.zeros((N, 3))
+    if k == 0:
+        pos0 = np.random.uniform(30, 70, (N, 2))
+    else:
+        pos0 = np.random.uniform(10, 90, (N, 2)) 
+    pos0[0] = sink
+    rs0 = np.random.uniform(rs[0], rs[1], (N, 1))
+    alpop[:,:2] = pos0
+    alpop[:,2] = rs0[:, 0]
+    alpop_cost = CostFunction(alpop, stat, RP, Obstacle_Area, Covered_Area.copy())
+    RP[:,0] = np.minimum(RP[:,0], alpop_cost[0])
+    RP[:,1] = np.maximum(RP[:,1], alpop_cost[0])
+    pop.append({'Position': alpop, 'Cost': alpop_cost})
+FES += nPop
     
 # %% main loop
-for gen in range(max_gen):
-    # 1) Mating: use actual parent pool size; produce exactly pop_size offspring
+gen = 0
+while FES < max_fes:
+    gen += 1
+    # 1) Mating: use actual parent pool size; produce exactly nPop offspring
     offspring = []
     N_parent = len(pop)
-    # create a random parent sequence (with wrap) of length >= pop_size
+    # create a random parent sequence (with wrap) of length >= nPop
     parents_idx = np.random.permutation(N_parent)
     # if sequence too short, tile it
-    while parents_idx.size < pop_size:
+    while parents_idx.size < nPop:
         parents_idx = np.concatenate([parents_idx, np.random.permutation(N_parent)])
-    parents_idx = parents_idx[:pop_size]
+    parents_idx = parents_idx[:nPop]
 
     # pair parents sequentially (0-1, 2-3, ...) and wrap the partner if odd
     i = 0
-    while len(offspring) < pop_size:
+    while len(offspring) < nPop:
         idx_a = parents_idx[i % parents_idx.size]
         idx_b = parents_idx[(i + 1) % parents_idx.size]
         p1 = pop[int(idx_a)]['Position']
@@ -138,61 +154,35 @@ for gen in range(max_gen):
         c1, c2 = sbx_crossover(p1, p2, eta=sbx_eta, pc=1.0, xmin=xmin, xmax=xmax)
         c1 = polynomial_mutation(c1, eta=mut_eta, pm=pm, xmin=xmin, xmax=xmax)
         c2 = polynomial_mutation(c2, eta=mut_eta, pm=pm, xmin=xmin, xmax=xmax)
-        offspring.append({'Position': c1, 'Cost': problem_eval(c1),
+        offspring.append({'Position': c1, 'Cost': CostFunction(c1, stat, RP, Obstacle_Area, Covered_Area.copy()),
                           'DominationSet': set(), 'DominationCount': 0, 'Rank': 0})
-        if len(offspring) < pop_size:
-            offspring.append({'Position': c2, 'Cost': problem_eval(c2),
+        if len(offspring) < nPop:
+            offspring.append({'Position': c2, 'Cost': CostFunction(c2, stat, RP, Obstacle_Area, Covered_Area.copy()),
                               'DominationSet': set(), 'DominationCount': 0, 'Rank': 0})
         i += 2
-
+    FES += i
+    
     # 2) Merge
     pop_all = pop + offspring
     F_all = np.array([ind['Cost'] for ind in pop_all])
+
+    # Update ideal
     ideal = np.min(F_all, axis=0)
+    nadir = np.max(F_all, axis=0)
+    RP[:,0] = ideal.T.flatten()
+    RP[:,1] = nadir.T.flatten()
 
     # 3) Non-dominated sorting
     fronts = NS_Sort(pop_all)
 
     # 4) Selection using OSD
-    chosen_indices = osd_selection(F_all, fronts, pop_size, ideal, ref_dirs)
+    chosen_indices = osd_selection(F_all[:,0], fronts, nPop, ideal, W)
     pop = [pop_all[i] for i in chosen_indices]
 
-    # 5) Print progress
-    if (gen + 1) % max(1, max_gen // 10) == 0 or gen == 0:
-        print(f"Gen {gen+1:4d}: pop size {len(pop)}")
-
-# %% Final plot
-F = np.array([ind['Cost'] for ind in pop])
-points = F[:, :3]  # f1, f2, f3
-cloud = pv.PolyData(points)
-points = ref_dirs[:, :3]  # f1, f2, f3
-cloud2 = pv.PolyData(points)
-
-# gen plotter
-plotter = pv.Plotter()
-plotter.add_points(
-    cloud,
-    color="red",                # color
-    point_size=9,                # size
-    render_points_as_spheres=True  # sphere point
-)
-# # gen plotter 
-# plotter.add_points(
-#     cloud2,
-#     color="blue",                # color
-#     point_size=8,                # size
-#     render_points_as_spheres=True  # sphere point
-# )
-plotter.show_grid(
-    xtitle='f1',
-    ytitle='f2',
-    ztitle='f3',
-    color='gray',
-    grid='back',     # vẽ lưới phía sau điểm
-    location='outer' # hiển thị nhãn ngoài khung
-)
-plotter.show_bounds(grid='front', color='black')
-plotter.add_axes(line_width=10)
-plotter.add_text("NSGA3 Pareto Front", position='upper_edge', font_size=14, color='black')
-plotter.view_vector((-35, -25, 1))  # try view_isometric(), view_yx(),...
-plotter.show(title="NSGA3 Pareto Front 3D")
+    # Print progress
+    print(f"Gen {gen}, FES {FES}: pop size {len(pop)}")  
+    plot3D(pop)
+    
+# %%plot final front from pop
+plot_name = 'RVEA'
+plot3D_adjustable(pop, plot_name)

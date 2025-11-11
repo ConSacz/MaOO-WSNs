@@ -14,26 +14,26 @@ A compact NSGA-III implementation (numpy only).
 
 NSGA-III (numpy-only) — fixed version with 'pop' structure (list of dicts).
 Fixes:
- - avoid IndexError when population temporarily not equal to pop_size
- - mating uses actual parent pool size; always generate exactly pop_size offspring
+ - avoid IndexError when population temporarily not equal to nPop
+ - mating uses actual parent pool size; always generate exactly nPop offspring
  - selection/niching uses indices relative to merged population (pop_all)
- - ensures new population length == pop_size
+ - ensures new population length == nPop
 """
 
 import numpy as np
-import pyvista as pv
 from utils.Domination_functions import NS_Sort
 from utils.GA_functions import sbx_crossover, polynomial_mutation
 from utils.Decompose_functions import das_dennis_generate
-
+from utils.Multi_objective_functions import CostFunction_3F1C_MOO
+from utils.Plot_functions import plot3D, plot3D_adjustable
 
 # ----------------------------
 # Association & niching
 # ----------------------------
-def associate_to_reference(F, ref_dirs, ideal):
+def associate_to_reference(F, W, ideal):
     Z = F - ideal
     Znorm = Z / (np.max(np.abs(Z), axis=0, keepdims=True) + 1e-12)
-    rd = ref_dirs / (np.linalg.norm(ref_dirs, axis=1, keepdims=True) + 1e-12)
+    rd = W / (np.linalg.norm(W, axis=1, keepdims=True) + 1e-12)
     projections = np.dot(Znorm, rd.T)
     proj_vecs = projections[:, :, None] * rd[None, :, :]
     perps = np.linalg.norm(Znorm[:, None, :] - proj_vecs, axis=2)
@@ -41,19 +41,19 @@ def associate_to_reference(F, ref_dirs, ideal):
     dist = perps[np.arange(perps.shape[0]), ref_idx]
     return ref_idx, dist
 
-def niching_selection(F, ref_dirs, ideal, chosen_indices, last_front, pop_size):
+def niching_selection(F, W, ideal, chosen_indices, last_front, nPop):
     """
     chosen_indices, last_front: lists of indices relative to F (i.e. indices in pop_all / F_all)
     returns: list of chosen indices (indices in same coordinate system as chosen_indices / last_front)
     """
-    remaining = pop_size - len(chosen_indices)
+    remaining = nPop - len(chosen_indices)
     if remaining <= 0:
         return []
 
     all_idx = np.array(list(chosen_indices) + list(last_front), dtype=int)
     F_all = F[all_idx]
-    ref_idx_all, dist_all = associate_to_reference(F_all, ref_dirs, ideal)
-    K = ref_dirs.shape[0]
+    ref_idx_all, dist_all = associate_to_reference(F_all, W, ideal)
+    K = W.shape[0]
 
     niche_count = np.zeros(K, dtype=int)
     if len(chosen_indices) > 0:
@@ -102,60 +102,86 @@ def niching_selection(F, ref_dirs, ideal, chosen_indices, last_front, pop_size):
     selected = [int(all_idx[int(rel)]) for rel in selected_rel]
     return selected
 
-# ----------------------------
-# Problem: DTLZ2 (3 objectives)
-# ----------------------------
-def problem_eval(x):
-    x = np.atleast_2d(x)
-    g = np.sum((x[:, 2:] - 0.5) ** 2, axis=1)
-    f1 = (1 + g) * np.cos(0.5 * np.pi * x[:, 0]) * np.cos(0.5 * np.pi * x[:, 1])
-    f2 = (1 + g) * np.cos(0.5 * np.pi * x[:, 0]) * np.sin(0.5 * np.pi * x[:, 1])
-    f3 = (1 + g) * np.sin(0.5 * np.pi * x[:, 0])
-    return np.vstack([f1, f2, f3]).T.squeeze()
+# ---------- Cost Function 3 functions 1 constraint
+def CostFunction(pop, stat, RP, Obstacle_Area, Covered_Area):
+    return CostFunction_3F1C_MOO(pop, stat, RP, Obstacle_Area, Covered_Area)
 
-# ----------------------------
+# %%----------------------------
 # Main NSGA-III loop (fixed)
 # ----------------------------
-D = 12
 n_obj = 3
-pop_size = 100
-max_gen = 100
-xmin = np.zeros(D)
-xmax = np.ones(D)
-ref_divisions = 11
+nPop = 200
+max_fes = 50000
+p_ref = 19
 sbx_eta = 30
 mut_eta = 20
 pm = None
 seed = 1
+xl=0
+xu=100
 
+# Network Parameter
+N = 60
+rc = 20
+stat = np.zeros((2, N), dtype=float)  # tạo mảng 2xN
+stat[1, 0] = rc         # rc
+rs = (8,12)
+sink = np.array([xu//2, xu//2])
+RP = np.zeros((3, 2))   
+RP[:,0] = [1, 1, 1]          # first col are ideal values
+RP[:,1] = [0.00001, 0.00001, 0.00001]    # second col are nadir values
+
+xmin = np.ones((N,3))*xl
+xmin[:,2] = (np.ones((N,1))*rs[0]).flatten()
+xmax = np.ones((N,3))*xu
+xmax[:,2] = (np.ones((N,1))*rs[1]).flatten()
+
+# %% Initilization
 if seed is not None:
     np.random.seed(seed)
 
-ref_dirs = das_dennis_generate(n_obj, ref_divisions)
+W = das_dennis_generate(n_obj, p_ref)
 
-# initialize pop (list of dicts)
+# environment
+Covered_Area = np.zeros((xu, xu), dtype=int)
+Obstacle_Area = np.ones((xu, xu), dtype=int)
+
+# population init
+FES = 0
 pop = []
-for i in range(pop_size):
-    position = np.random.rand(D) * (xmax - xmin) + xmin
-    cost = problem_eval(position)
-    ind = {'Position': position, 'Cost': cost,
-           'DominationSet': set(), 'DominationCount': 0, 'Rank': 0}
-    pop.append(ind)
+for k in range(nPop):
+    alpop = np.zeros((N, 3))
+    if k == 0:
+        pos0 = np.random.uniform(30, 70, (N, 2))
+    else:
+        pos0 = np.random.uniform(10, 90, (N, 2)) 
+    pos0[0] = sink
+    rs0 = np.random.uniform(rs[0], rs[1], (N, 1))
+    alpop[:,:2] = pos0
+    alpop[:,2] = rs0[:, 0]
+    alpop_cost = CostFunction(alpop, stat, RP, Obstacle_Area, Covered_Area.copy())
+    RP[:,0] = np.minimum(RP[:,0], alpop_cost[0])
+    RP[:,1] = np.maximum(RP[:,1], alpop_cost[0])
+    pop.append({'Position': alpop, 'Cost': alpop_cost})
+FES += nPop
 
-for gen in range(max_gen):
-    # 1) Mating: use actual parent pool size; produce exactly pop_size offspring
+# %% main loop
+gen = 0
+while FES < max_fes:
+    gen += 1
+    # 1) Mating: use actual parent pool size; produce exactly nPop offspring
     offspring = []
     N_parent = len(pop)
-    # create a random parent sequence (with wrap) of length >= pop_size
+    # create a random parent sequence (with wrap) of length >= nPop
     parents_idx = np.random.permutation(N_parent)
     # if sequence too short, tile it
-    while parents_idx.size < pop_size:
+    while parents_idx.size < nPop:
         parents_idx = np.concatenate([parents_idx, np.random.permutation(N_parent)])
-    parents_idx = parents_idx[:pop_size]
+    parents_idx = parents_idx[:nPop]
 
     # pair parents sequentially (0-1, 2-3, ...) and wrap the partner if odd
     i = 0
-    while len(offspring) < pop_size:
+    while len(offspring) < nPop:
         idx_a = parents_idx[i % parents_idx.size]
         idx_b = parents_idx[(i + 1) % parents_idx.size]
         p1 = pop[int(idx_a)]['Position']
@@ -163,74 +189,56 @@ for gen in range(max_gen):
         c1, c2 = sbx_crossover(p1, p2, eta=sbx_eta, pc=1.0, xmin=xmin, xmax=xmax)
         c1 = polynomial_mutation(c1, eta=mut_eta, pm=pm, xmin=xmin, xmax=xmax)
         c2 = polynomial_mutation(c2, eta=mut_eta, pm=pm, xmin=xmin, xmax=xmax)
-        offspring.append({'Position': c1, 'Cost': problem_eval(c1),
+        offspring.append({'Position': c1, 'Cost': CostFunction(c1, stat, RP, Obstacle_Area, Covered_Area.copy()),
                           'DominationSet': set(), 'DominationCount': 0, 'Rank': 0})
-        if len(offspring) < pop_size:
-            offspring.append({'Position': c2, 'Cost': problem_eval(c2),
+        if len(offspring) < nPop:
+            offspring.append({'Position': c2, 'Cost': CostFunction(c2, stat, RP, Obstacle_Area, Covered_Area.copy()),
                               'DominationSet': set(), 'DominationCount': 0, 'Rank': 0})
         i += 2
-
+    FES += i
     # 2) Merge
     pop_all = pop + offspring
     F_all = np.array([ind['Cost'] for ind in pop_all])
+    
+    # Update ideal
     ideal = np.min(F_all, axis=0)
+    nadir = np.max(F_all, axis=0)
+    RP[:,0] = ideal.T.flatten()
+    RP[:,1] = nadir.T.flatten()
 
     # 3) Non-dominated sorting on merged pop_all
     # build a temporary pop_all copy to use NS_Sort which modifies DominationSet/Count
     # We can operate directly on pop_all
     fronts = NS_Sort(pop_all)
 
-    # 4) Build new population ensuring exactly pop_size individuals
+    # 4) Build new population ensuring exactly nPop individuals
     chosen_rel_indices = []  # indices relative to pop_all
     for front in fronts:
-        if len(chosen_rel_indices) + len(front) <= pop_size:
+        if len(chosen_rel_indices) + len(front) <= nPop:
             chosen_rel_indices.extend(front)
         else:
             # need to pick some from this front
-            needed = pop_size - len(chosen_rel_indices)
-            chosen = niching_selection(F_all, ref_dirs, ideal, chosen_rel_indices, front, pop_size)
+            needed = nPop - len(chosen_rel_indices)
+            chosen = niching_selection(F_all[:,0], W, ideal, chosen_rel_indices, front, nPop)
             # niching_selection returns indices in coordinates of pop_all already
             chosen_rel_indices.extend(chosen)
             break
 
     # If still short (shouldn't happen often), fill with best remaining (by rank then distance)
-    if len(chosen_rel_indices) < pop_size:
+    if len(chosen_rel_indices) < nPop:
         remaining_pool = [i for i in range(len(pop_all)) if i not in chosen_rel_indices]
         # sort remaining by rank (pop_all[i]['Rank']) and then by sum of objectives (as tie-breaker)
         remaining_pool_sorted = sorted(remaining_pool, key=lambda ii: (pop_all[ii]['Rank'], np.sum(pop_all[ii]['Cost'])))
-        to_add = remaining_pool_sorted[:(pop_size - len(chosen_rel_indices))]
+        to_add = remaining_pool_sorted[:(nPop - len(chosen_rel_indices))]
         chosen_rel_indices.extend(to_add)
 
     # form new pop preserving dict objects (or create shallow copies if desired)
     pop = [pop_all[i] for i in chosen_rel_indices]
 
     # Print progress
-    if (gen + 1) % max(1, max_gen // 10) == 0 or gen == 0:
-        print(f"Gen {gen+1:4d}: pop size {len(pop)}")  
-
-# %% Final plot
-F = np.array([ind['Cost'] for ind in pop])
-points = F[:, :3]  # f1, f2, f3
-cloud = pv.PolyData(points)
-
-# gen plotter
-plotter = pv.Plotter()
-plotter.add_points(
-    cloud,
-    color="blue",                # color
-    point_size=8,                # size
-    render_points_as_spheres=True  # sphere point
-)
-plotter.show_grid(
-    xtitle='f1',
-    ytitle='f2',
-    ztitle='f3',
-    color='gray',
-    grid='back',     # vẽ lưới phía sau điểm
-    location='outer' # hiển thị nhãn ngoài khung
-)
-plotter.show_bounds(grid='front', color='black')
-plotter.add_axes(line_width=10)
-plotter.add_text("NSGA3 Pareto Front", position='upper_edge', font_size=14, color='black')
-plotter.view_vector((-35, -25, 1))  # try view_isometric(), view_yx(),...
-plotter.show(title="NSGA3 Pareto Front 3D")
+    print(f"Gen {gen}, FES {FES}: pop size {len(pop)}")  
+    plot3D(pop, W=W)
+    
+# %%plot final front from pop
+plot_name = 'RVEA'
+plot3D_adjustable(pop, plot_name)
