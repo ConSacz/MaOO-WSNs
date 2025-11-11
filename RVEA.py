@@ -15,7 +15,6 @@ import numpy as np
 from utils.Decompose_functions import das_dennis_generate
 from utils.GA_functions import sbx_crossover, polynomial_mutation
 from utils.Multi_objective_functions import CostFunction_3F1C_MOO
-from utils.Normalize_functions import global_normalized
 from utils.Plot_functions import plot3D, plot3D_adjustable
 
 # %%
@@ -41,22 +40,13 @@ def pbi_values(F_norm, v):
     return d1, d2
 
 # ---------- pop utilities ----------
-def init_pop_uniform(nPop, n_var, eval_func, xl=0.0, xu=1.0):
-    """Return pop list with random positions in [xl,xu] and evaluated costs"""
-    pop = []
-    X = np.random.rand(nPop, n_var) * (xu - xl) + xl
-    F = eval_func(X)  # evaluate all at once (obj_func expects array)
-    for i in range(nPop):
-        pop.append({'Position': X[i].copy(), 'Cost': F[i].copy()})
-    return pop
-
 def pop_positions(pop):
     return np.array([ind['Position'] for ind in pop])
 
 def pop_costs(pop):
     return np.array([ind['Cost'] for ind in pop])
 
-# ---------- Example problem: DTLZ2 (kept the same) ----------
+# ---------- Cost Function 3 functions 1 constraint
 def CostFunction(pop, stat, RP, Obstacle_Area, Covered_Area):
     return CostFunction_3F1C_MOO(pop, stat, RP, Obstacle_Area, Covered_Area)
 
@@ -100,9 +90,12 @@ Obstacle_Area = np.ones((xu, xu), dtype=int)
 # population init
 FES = 0
 pop = []
-for _ in range(nPop):
+for k in range(nPop):
     alpop = np.zeros((N, 3))
-    pos0 = np.random.uniform(10, 90, (N, 2)) 
+    if k == 0:
+        pos0 = np.random.uniform(30, 70, (N, 2))
+    else:
+        pos0 = np.random.uniform(10, 90, (N, 2)) 
     pos0[0] = sink
     rs0 = np.random.uniform(rs[0], rs[1], (N, 1))
     alpop[:,:2] = pos0
@@ -210,6 +203,7 @@ while FES < max_fes:
     # optional logging
     print(f"gen {gen}, FES {FES}")
     plot3D(pop, W=W)
+    
 # %%plot final front from pop
 plot_name = 'RVEA'
 plot3D_adjustable(pop, plot_name)

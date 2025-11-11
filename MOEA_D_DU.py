@@ -46,10 +46,14 @@ def pop_positions(pop):
 def pop_costs(pop):
     return np.array([p['Cost'] for p in pop])
 
+# ---------- Cost Function 3 functions 1 constraint
+def CostFunction(pop, stat, RP, Obstacle_Area, Covered_Area):
+    return CostFunction_3F1C_MOO(pop, stat, RP, Obstacle_Area, Covered_Area)
 
 # %% ---------- Main Parameters ----------
 # algorithm parameter
 n_obj = 3
+p_ref = 19
 nPop = 200
 max_fes = 50000
 neigh_size = 20
@@ -75,7 +79,7 @@ if seed is not None:
 
 # 1) weight vectors and neighborhoods
 # W = uniform_weights(nPop, n_obj)
-W = das_dennis_generate(n_obj, 19)
+W = das_dennis_generate(n_obj, p_ref)
 # optionally remove random rows if W too large (kept from your prior code)
 if W.shape[0] > nPop:
     rows_to_delete = np.random.choice(W.shape[0], W.shape[0] - nPop, replace=False)
@@ -94,14 +98,17 @@ Obstacle_Area = np.ones((xmax, xmax), dtype=int)
 # 2) initialize pop
 FES=0
 pop = []
-for _ in range(nPop):
+for k in range(nPop):
     alpop = np.zeros((N, 3))
-    pos0 = np.random.uniform(20, 80, (N, 2))
+    if k == 0:
+        pos0 = np.random.uniform(30, 70, (N, 2))
+    else:
+        pos0 = np.random.uniform(10, 90, (N, 2)) 
     pos0[0] = sink
     rs0 = np.random.uniform(rs[0], rs[1], (N, 1))
     alpop[:,:2] = pos0
     alpop[:,2] = rs0[:, 0]
-    alpop_cost = CostFunction_3F1C_MOO(alpop, stat, RP, Obstacle_Area, Covered_Area.copy())
+    alpop_cost = CostFunction(alpop, stat, RP, Obstacle_Area, Covered_Area.copy())
     RP[:,0] = np.minimum(RP[:,0], alpop_cost[0])
     RP[:,1] = np.maximum(RP[:,1], alpop_cost[0])
     pop.append({'Position': alpop, 'Cost': alpop_cost})
@@ -116,7 +123,7 @@ while FES < max_fes:
     gen+=1
     # create offspring positions via DE (one offspring per subproblem)
     U = de_rand1_bin_pop(pop, CR=CR, xmin=xmin, xmax=xmax)  # (nPop, D)
-    FU = np.array([CostFunction_3F1C_MOO(U[i], stat, RP, Obstacle_Area, Covered_Area.copy()) for i in range(nPop)])     # (nPop, n_obj)
+    FU = np.array([CostFunction(U[i], stat, RP, Obstacle_Area, Covered_Area.copy()) for i in range(nPop)])     # (nPop, n_obj)
     FES += nPop
     # update reference point
     F = FU[:,0]

@@ -102,9 +102,12 @@ archive = []
 # population init
 FES = 0
 pop = []
-for _ in range(NP_init):
+for k in range(NP_init):
     alpop = np.zeros((N, 3))
-    pos0 = np.random.uniform(10, 90, (N, 2)) 
+    if k == 0:
+        pos0 = np.random.uniform(30, 70, (N, 2))
+    else:
+        pos0 = np.random.uniform(10, 90, (N, 2)) 
     pos0[0] = sink
     rs0 = np.random.uniform(rs[0], rs[1], (N, 1))
     alpop[:,:2] = pos0
