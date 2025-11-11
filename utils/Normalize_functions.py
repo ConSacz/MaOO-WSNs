@@ -15,3 +15,4 @@ def global_normalized(Cost, RP):
     nml_Cost = (Cost - x_sta) / (x_nad - x_sta)
     
     return nml_Cost
+

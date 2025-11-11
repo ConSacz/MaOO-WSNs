@@ -72,14 +72,14 @@ def plot3D(pop, W = None):
     ax = fig.add_subplot(111, projection='3d')
 
     # vẽ toàn bộ quần thể
-    ax.scatter(F_set[:, 0], F_set[:, 1], F_set[:, 2], c='g', marker='o', label='Population')
+    ax.scatter(F_set[:, 0], F_set[:, 1], F_set[:, 2], c='g', marker='o', label='Pareto Set')
 
     # vẽ pareto front
-    ax.scatter(Front[:, 0], Front[:, 1], Front[:, 2], c='r', marker='o', label='PF')
+    ax.scatter(Front[:, 0], Front[:, 1], Front[:, 2], c='r', marker='o', label='Pareto Front')
     
     # draw Reference point
-    # if W is not None:
-    #     ax.scatter(W[:, 0], W[:, 1], W[:, 2], c='r', marker='o', label='PF')
+    if W is not None:
+        ax.scatter(W[:, 0], W[:, 1], W[:, 2], c='r', marker='o', label='PF')
     
     ax.view_init(elev=20, azim=190)
 
