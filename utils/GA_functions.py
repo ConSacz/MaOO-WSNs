@@ -55,19 +55,19 @@ def crossover_exponential(x, v, Cr):
 # SBX crossover
 # ----------------------------
 def sbx_crossover(parent1, parent2, eta=20, pc=1.0, xmin=None, xmax=None):
-    D = parent1.size
+    D = parent1.shape[0]
     child1 = parent1.copy()
     child2 = parent2.copy()
     if np.random.rand() <= pc:
-        for i in range(D):
+        for i in range(1,D):
             if np.random.rand() <= 0.5:
-                if abs(parent1[i] - parent2[i]) > 1e-14:
-                    x1 = min(parent1[i], parent2[i])
-                    x2 = max(parent1[i], parent2[i])
+                if any(abs(parent1[i] - parent2[i])) > 1e-14:
+                    x1 = np.minimum(parent1[i], parent2[i])
+                    x2 = np.maximum(parent1[i], parent2[i])
                     rand = np.random.rand()
                     beta = 1.0 + (2.0 * (x1 - xmin[i]) / (x2 - x1)) if xmin is not None else 1.0
                     alpha = 2.0 - beta ** -(eta + 1)
-                    if rand <= 1.0 / alpha:
+                    if any(rand <= 1.0 / alpha):
                         betaq = (rand * alpha) ** (1.0 / (eta + 1))
                     else:
                         betaq = (1.0 / (2.0 - rand * alpha)) ** (1.0 / (eta + 1))
@@ -75,7 +75,7 @@ def sbx_crossover(parent1, parent2, eta=20, pc=1.0, xmin=None, xmax=None):
 
                     beta = 1.0 + (2.0 * (xmax[i] - x2) / (x2 - x1)) if xmax is not None else 1.0
                     alpha = 2.0 - beta ** -(eta + 1)
-                    if rand <= 1.0 / alpha:
+                    if any(rand <= 1.0 / alpha):
                         betaq = (rand * alpha) ** (1.0 / (eta + 1))
                     else:
                         betaq = (1.0 / (2.0 - rand * alpha)) ** (1.0 / (eta + 1))
@@ -100,16 +100,16 @@ def sbx_crossover(parent1, parent2, eta=20, pc=1.0, xmin=None, xmax=None):
 # Polynomial mutation
 # ----------------------------
 def polynomial_mutation(x, eta=20, pm=None, xmin=None, xmax=None):
-    D = x.size
+    D = x.shape[0]
     y = x.copy()
     if pm is None:
         pm = 1.0 / float(D)
-    for i in range(D):
+    for i in range(1,D):
         if np.random.rand() < pm:
             xi = x[i]
             xl = xmin[i] if xmin is not None else xi - 1.0
             xu = xmax[i] if xmax is not None else xi + 1.0
-            if xl == xu:
+            if all(xl == xu):
                 continue
             delta1 = (xi - xl) / (xu - xl)
             delta2 = (xu - xi) / (xu - xl)
