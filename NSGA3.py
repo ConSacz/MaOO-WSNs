@@ -24,23 +24,13 @@ import numpy as np
 import time
 from utils.Domination_functions import NS_Sort
 from utils.GA_functions import sbx_crossover, polynomial_mutation
-from utils.Decompose_functions import das_dennis_generate
+from utils.Decompose_functions import das_dennis_generate, associate_to_reference
 from utils.Multi_objective_functions import CostFunction_3F1C_MOO
 from utils.Plot_functions import plot3D, plot3D_adjustable
 
 # ----------------------------
 # Association & niching
 # ----------------------------
-def associate_to_reference(F, W, ideal):
-    Z = F - ideal
-    Znorm = Z / (np.max(np.abs(Z), axis=0, keepdims=True) + 1e-12)
-    rd = W / (np.linalg.norm(W, axis=1, keepdims=True) + 1e-12)
-    projections = np.dot(Znorm, rd.T)
-    proj_vecs = projections[:, :, None] * rd[None, :, :]
-    perps = np.linalg.norm(Znorm[:, None, :] - proj_vecs, axis=2)
-    ref_idx = np.argmin(perps, axis=1)
-    dist = perps[np.arange(perps.shape[0]), ref_idx]
-    return ref_idx, dist
 
 def niching_selection(F, W, ideal, chosen_indices, last_front, nPop):
     """
