@@ -143,5 +143,30 @@ def plot3D_adjustable(pop, name):
     #plotter.add_text("IMDEA Pareto Front", position='upper_edge', font_size=14, color='black')
     plotter.view_vector((-35, -25, 1))  # try view_isometric(), view_yx(),...
     plotter.show(title=f"{name} Pareto Front 3D")
-    
-    
+
+# %% plot MaOO
+def plot_MaOO(F):
+    """
+    F: ma trận kích thước (N_obj, nPop)
+       - N_obj: số hàm mục tiêu
+       - nPop : số nghiệm
+    """
+    F = np.asarray(F)
+    N_obj, nPop = F.shape
+
+    x = np.arange(1, N_obj + 1)
+
+    plt.figure(figsize=(8, 5))
+
+    for i in range(nPop):
+        plt.plot(x, F[:, i], marker='o', linewidth=1)
+
+    plt.xlabel("Objective Index")
+    plt.ylabel("Objective Value")
+    plt.title("Multi-objective Line Plot")
+    plt.grid(True, linestyle='--', alpha=0.4)
+    plt.tight_layout()
+    plt.show()
+
+
+ 

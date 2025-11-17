@@ -11,6 +11,31 @@ def tchebycheff(f, w, RP):
     w_safe = np.where(w == 0, 1e-12, w)
     return np.max(diff / w_safe)
 
+# -------------------------
+# compute perpendicular distance
+# -------------------------
+def vertical_distance(f, w, ref = np.zeros(0)):
+    if ref.size:
+        f = f - ref
+    wn = w / (np.linalg.norm(w) + 1e-12)
+    proj = np.dot(f, wn) * wn
+    perp = f - proj
+    return np.linalg.norm(perp)
+
+# -------------------------
+# compute associate distance to RP
+# -------------------------
+def associate_to_reference(F, W, ideal):
+    Z = F - ideal
+    Znorm = Z / (np.max(np.abs(Z), axis=0, keepdims=True) + 1e-12)
+    rd = W / (np.linalg.norm(W, axis=1, keepdims=True) + 1e-12)
+    projections = np.dot(Znorm, rd.T)
+    proj_vecs = projections[:, :, None] * rd[None, :, :]
+    perps = np.linalg.norm(Znorm[:, None, :] - proj_vecs, axis=2)
+    ref_idx = np.argmin(perps, axis=1)
+    dist = perps[np.arange(perps.shape[0]), ref_idx]
+    return ref_idx, dist
+
 # ----------------------------
 # uniform reference generation
 # ----------------------------
@@ -30,17 +55,6 @@ def weight_assign(pop,RP):
     w = weights
     
     return pop, w
-    
-# -------------------------
-# compute perpendicular distance
-# -------------------------
-def vertical_distance(f, w, ref = np.zeros(0)):
-    if ref.size:
-        f = f - ref
-    wn = w / (np.linalg.norm(w) + 1e-12)
-    proj = np.dot(f, wn) * wn
-    perp = f - proj
-    return np.linalg.norm(perp)
 
 # ----------------------------
 # Das & Dennis reference generation
