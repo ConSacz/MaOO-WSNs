@@ -5,6 +5,7 @@ except:
     pass
 # %%
 import numpy as np
+import time
 from utils.Domination_functions import check_domination, nondominated_front
 from utils.GA_functions import crossover_binomial, crossover_exponential
 from utils.Multi_objective_functions import CostFunction_3F1C_MOO
@@ -134,6 +135,7 @@ gen = 0
 
 # %% ---------- Main loop ----------
 while FES < max_fes:
+    start_time = time.time()
     gen += 1
     NP = len(pop)
     perm = _rng.permutation(NP)
@@ -195,8 +197,8 @@ while FES < max_fes:
     best = pop[best_idx]
     history['best'].append(best)
     history['FES'].append(FES)
-
-    print(f"Gen {gen}, FES={FES}")
+    end_time = time.time() - start_time
+    print(f"Gen {gen}, FES {FES}/{max_fes}, executed in {end_time:.3f}s") 
     plot3D(pop)
 
 # %%---------- final Plot ----------

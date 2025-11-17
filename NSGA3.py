@@ -21,6 +21,7 @@ Fixes:
 """
 
 import numpy as np
+import time
 from utils.Domination_functions import NS_Sort
 from utils.GA_functions import sbx_crossover, polynomial_mutation
 from utils.Decompose_functions import das_dennis_generate
@@ -168,6 +169,7 @@ FES += nPop
 # %% main loop
 gen = 0
 while FES < max_fes:
+    start_time = time.time()
     gen += 1
     # 1) Mating: use actual parent pool size; produce exactly nPop offspring
     offspring = []
@@ -236,9 +238,10 @@ while FES < max_fes:
     pop = [pop_all[i] for i in chosen_rel_indices]
 
     # Print progress
-    print(f"Gen {gen}, FES {FES}: pop size {len(pop)}")  
-    plot3D(pop, W=W)
+    end_time = time.time() - start_time
+    print(f"Gen {gen}, FES {FES}/{max_fes}, executed in {end_time:.3f}s")  
+    plot3D(pop)
     
 # %%plot final front from pop
-plot_name = 'RVEA'
+plot_name = 'NSGA3'
 plot3D_adjustable(pop, plot_name)

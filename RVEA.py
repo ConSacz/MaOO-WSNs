@@ -12,6 +12,7 @@ RVEA (Reference Vector Guided Evolutionary Algorithm)
 - Uses SBX crossover + polynomial mutation, Das & Dennis reference vectors, PBI selection
 """
 import numpy as np
+import time
 from utils.Decompose_functions import das_dennis_generate
 from utils.GA_functions import sbx_crossover, polynomial_mutation
 from utils.Multi_objective_functions import CostFunction_3F1C_MOO
@@ -119,6 +120,7 @@ ideal = get_ideal(F_curr)
 # %% main loop
 gen = 0
 while FES < max_fes:
+    start_time = time.time()
     gen += 1
     # 4) mating & variation -> produce offspring positions
     # random mating order
@@ -199,10 +201,11 @@ while FES < max_fes:
             'Cost'    : F_all[idx].copy()
         })
     pop = new_pop
-
+    end_time = time.time() - start_time
+    
     # optional logging
-    print(f"gen {gen}, FES {FES}")
-    plot3D(pop, W=W)
+    print(f"Gen {gen}, FES {FES}/{max_fes}, executed in {end_time:.3f}s") 
+    plot3D(pop)
     
 # %%plot final front from pop
 plot_name = 'RVEA'

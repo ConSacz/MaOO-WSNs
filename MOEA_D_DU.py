@@ -8,9 +8,10 @@ except:
 
 # %%
 import numpy as np
+import time
 from utils.Decompose_functions import das_dennis_generate, tchebycheff, vertical_distance
 from utils.Multi_objective_functions import CostFunction_3F1C_MOO
-from utils.Plot_functions import plot3D, plot3D_adjustable, plot_deployment2D
+from utils.Plot_functions import plot3D, plot3D_adjustable
 
 # %% DE operator variant that works directly from pop (rand/1/bin)
 # returns children positions array shape (nPop, D)
@@ -120,6 +121,7 @@ RP[:,1] = (np.max(pop_costs(pop), axis=0)).T.flatten()
 # %% main loop
 gen = 0
 while FES < max_fes:
+    start_time = time.time()
     gen+=1
     # create offspring positions via DE (one offspring per subproblem)
     U = de_rand1_bin_pop(pop, CR=CR, xmin=xmin, xmax=xmax)  # (nPop, D)
@@ -163,9 +165,9 @@ while FES < max_fes:
     # recompute neighborhoods properly after permuting W
     distW = np.linalg.norm(W[:, None, :] - W[None, :, :], axis=2)
     neighborhoods = np.argsort(distW, axis=1)[:, :neigh_size]
-
+    end_time = time.time() - start_time
     # logging
-    print(f"Gen {gen}, FES: {FES}: pop size {len(pop)}")
+    print(f"Gen {gen}, FES {FES}/{max_fes}, executed in {end_time:.3f}s") 
     plot3D(pop)
     
 # %%---------- final Plot ----------
