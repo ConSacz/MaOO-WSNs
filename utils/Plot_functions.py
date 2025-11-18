@@ -2,6 +2,7 @@ import numpy as np
 import pyvista as pv
 import matplotlib.pyplot as plt
 from .Domination_functions import get_pareto_front
+from .Normalize_functions import global_normalized
 
 # %% plot deployment
 def plot_deployment2D(pop, Obstacle_Area, Covered_Area):
@@ -95,7 +96,7 @@ def plot3D(pop, W = None):
     plt.pause(0.001)
 
 # %% plot 3D adjustable figure
-def plot3D_adjustable(pop, name):
+def plot3D_adjustable(pop, name = ''):
     Front = np.array([ind['Cost'].flatten() for ind in get_pareto_front(pop)])
     F_set = np.array([ind['Cost'].flatten() for ind in pop])
     points = Front[:, :3]  # f1, f2, f3
@@ -145,21 +146,23 @@ def plot3D_adjustable(pop, name):
     plotter.show(title=f"{name} Pareto Front 3D")
 
 # %% plot MaOO
-def plot_MaOO(F):
+def plot_MaOO(F, RP):
     """
     F: ma trận kích thước (N_obj, nPop)
        - N_obj: số hàm mục tiêu
        - nPop : số nghiệm
     """
     F = np.asarray(F)
-    N_obj, nPop = F.shape
+    F = global_normalized(F, RP)
+    nPop, N_obj = F.shape
 
     x = np.arange(1, N_obj + 1)
 
     plt.figure(figsize=(8, 5))
 
     for i in range(nPop):
-        plt.plot(x, F[:, i], marker='o', linewidth=1)
+        plt.plot(x, F[i,:], marker='o', linewidth=1)
+
 
     plt.xlabel("Objective Index")
     plt.ylabel("Objective Value")
