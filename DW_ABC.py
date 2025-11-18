@@ -5,75 +5,88 @@ except:
     pass
 # %%
 import numpy as np
-import matplotlib.pyplot as plt
-# from scipy.io import savemat
-# from scipy.spatial.distance import cdist
-# import os
-from utils.Multi_objective_functions import CostFunction_MOO
-from utils.Graph_functions import Graph, Connectivity_graph
-from utils.Domination_functions import get_pareto_front, weighted_selection
-from utils.Decompose_functions import weight_assign
+import time
+from utils.Multi_objective_functions import CostFunction_3F1C_MOO
+from utils.Domination_functions import weighted_selection
+from utils.Decompose_functions import weight_assign, das_dennis_generate
+from utils.Plot_functions import plot3D, plot3D_adjustable, plot_MaOO
 from utils.Workspace_functions import save_mat
 
+# ---------- Cost Function 3 functions 1 constraint
+def CostFunction(pop, stat, RP, Obstacle_Area, Covered_Area):
+    return CostFunction_3F1C_MOO(pop, stat, RP, Obstacle_Area, Covered_Area)
 
 # %% ------------------------- PARAMETERS --------------------------
-for Trial in range(1):    
-    np.random.seed(Trial)
-    size = 100
-    MaxIt = 500
-    nPop = 50
-    N = 60
+for Trial in range(1): 
+    np.random.seed(2)
+    N_obj = 3
+    d = 13
+    max_fes = 50000
+    nPop = 100
+    xmin = 0
+    xmax = 100
+    a = 1
     
-    rc = 10
-    rs = np.ones(N, dtype=int) * 10
-    #rs = np.random.uniform(10, 15, N)
+    # Network Parameter
+    N = 60
+    rc = 20
     stat = np.zeros((2, N))  # tạo mảng 2xN
-    stat[0, :] = rs          # dòng 1 là rs
-    stat[1, 0] = rc          # phần tử đầu dòng 2 = rc
-    RP = np.zeros((2, 2))   # dòng 1 là nadỉ value
-    RP[:,0] = [1, 1]        # dòng 2 là ideal value
+    stat[1, 0] = rc         # rc
+    rs = (8,12)
+    sink = np.array([xmax//2, xmax//2])
+    RP = np.zeros((3, 2))   
+    RP[:,0] = [1, 1, 1]          # first col are ideal values
+    RP[:,1] = [0.00001, 0.00001, 0.00001]    # second col are nadir values
+    
     
     # %% ------------------------- INITIATION --------------------------
-    Covered_Area = np.zeros((size, size), dtype=int)
-    #Obstacle_Area = gen_target_area(1000, size)
-    Obstacle_Area = np.ones((size, size), dtype=int)
-    
-    sink = np.array([size//2, size//2])
-    a = 1
-    L = np.zeros(nPop, dtype=int)
-    
+    Covered_Area = np.zeros((xmax, xmax), dtype=int)
+    #Obstacle_Area = gen_target_area(1000, xmax)
+    Obstacle_Area = np.ones((xmax, xmax), dtype=int)
+
+    FES = 0
     pop = []
-    for _ in range(nPop):
-        alpop = np.random.uniform(sink[0]-rc/2, sink[1]+rc/2, (N, 2)) 
-        alpop[0] = sink
-        alpop_cost = CostFunction_MOO(alpop, stat, Obstacle_Area, Covered_Area.copy())
+    for k in range(nPop):
+        alpop = np.zeros((N, 3))
+        if k == 0:
+            pos0 = np.random.uniform(30, 70, (N, 2))
+        else:
+            pos0 = np.random.uniform(10, 90, (N, 2)) 
+        pos0[0] = sink
+        rs0 = np.random.uniform(rs[0], rs[1], (N, 1))
+        alpop[:,:2] = pos0
+        alpop[:,2] = rs0[:, 0]
+        alpop_cost = CostFunction(alpop, stat, RP, Obstacle_Area, Covered_Area.copy())
+        RP[:,0] = np.minimum(RP[:,0], alpop_cost[0])
+        RP[:,1] = np.maximum(RP[:,1], alpop_cost[0])
         pop.append({'Position': alpop, 'Cost': alpop_cost})
-        RP[:,0] = np.minimum(RP[:,0], alpop_cost[:,0])
-        RP[:,1] = np.maximum(RP[:,1], alpop_cost[:,0])
-            
+    del k
+    FES += nPop
+    
     # %% ------------------------- MAIN LOOP --------------------------
-    for it in range(MaxIt):
-        pop, w = weight_assign(pop,RP)
+    gen = 0
+    while FES < max_fes:
+        start_time = time.time()
+        gen+=1
+        F = np.array([p['Cost'] for p in pop])[:,0]
+        W = das_dennis_generate(N_obj, d)
+        W = weight_assign(F, W, RP)
     # %% ------------------------- EXPLORATION LOOP --------------------------
         #print("Exploration starts")
         for i in range(nPop):
             k = np.random.randint(nPop)
-            phi = a * np.random.uniform(-1, 1, (N, 2)) * (1 - L[i] / MaxIt)**5
+            phi = a * np.random.uniform(-1, 1, (N, 3)) * (1 - FES/ max_fes)**5
             alpop = pop[i]['Position'] + phi * (pop[i]['Position'] - pop[k]['Position'])
-            alpop[:, :2] = np.clip(alpop[:, :2], 0, size - 1)
-            alpop[0,:] = sink
-    
-            if Connectivity_graph(Graph(alpop[:, :2], rc),[]):
-                alpop_cost = CostFunction_MOO(alpop, stat, Obstacle_Area, Covered_Area.copy())
-                RP[:,0] = np.minimum(RP[:,0], alpop_cost[:,0])
-                RP[:,1] = np.maximum(RP[:,1], alpop_cost[:,0])
-                if weighted_selection(alpop_cost, pop[i]['Cost'],w[i,:],RP) == 1:
-                    pop[i]['Position'] = alpop
-                    pop[i]['Cost'] = alpop_cost 
-                else:
-                    L[i] += 1
-                    #continue
-           
+            alpop[:,:2] = np.clip(alpop[:,:2], 0, xmax - 1)
+            alpop[:, 2] = np.clip(alpop[:, 2], rs[0],rs[1])
+            alpop[0,:2] = sink
+            alpop_cost = CostFunction(alpop, stat, RP, Obstacle_Area, Covered_Area.copy())
+            RP[:,0] = np.minimum(RP[:,0], alpop_cost[0])
+            RP[:,1] = np.maximum(RP[:,1], alpop_cost[0])
+            if weighted_selection(alpop_cost, pop[i]['Cost'],W[i,:],RP) == 1:
+                pop[i]['Position'] = alpop
+                pop[i]['Cost'] = alpop_cost
+        FES += nPop
     # %% ------------------------- EXPLOITATION LOOP --------------------------
         #print("Exploitation starts")    
         for i in range(nPop):
@@ -83,55 +96,36 @@ for Trial in range(1):
                 k = arr[j]
                 alpop = pop[i]['Position'].copy()
                 h = np.random.randint(N)
-                phi = a * np.random.uniform(-1, 1, (1, 2)) * (1 - L[i] / MaxIt)**2
+                phi = a * np.random.uniform(-1, 1, (1, 3)) * (1 - FES/max_fes)**2
                 alpop[k] += phi.flatten() * (pop[i]['Position'][k] - pop[i]['Position'][h])
-                alpop[:, :2] = np.clip(alpop[:, :2], 0, size - 1)
-                alpop[0,:] = sink
-    
-                if Connectivity_graph(Graph(alpop[:, :2], rc),[]):
-                    alpop_cost = CostFunction_MOO(alpop, stat, Obstacle_Area, Covered_Area.copy())
-                    RP[:,0] = np.minimum(RP[:,0], alpop_cost[:,0])
-                    RP[:,1] = np.maximum(RP[:,1], alpop_cost[:,0])
-                    if weighted_selection(alpop_cost, pop[i]['Cost'], w[i,:],RP) == 1:
-                        pop[i]['Position'] = alpop
-                        pop[i]['Cost'] = alpop_cost
-                        break
+                alpop[:,:2] = np.clip(alpop[:,:2], 0, xmax - 1)
+                alpop[:, 2] = np.clip(alpop[:, 2], rs[0],rs[1])
+                alpop[0,:2] = sink
+                alpop_cost = CostFunction(alpop, stat, RP, Obstacle_Area, Covered_Area.copy())
+                FES += 1
+                RP[:,0] = np.minimum(RP[:,0], alpop_cost[0])
+                RP[:,1] = np.maximum(RP[:,1], alpop_cost[0])
+                if weighted_selection(alpop_cost, pop[i]['Cost'], W[i,:],RP) == 1:
+                    pop[i]['Position'] = alpop
+                    pop[i]['Cost'] = alpop_cost
+                    break
             #print(f"Exploitation changing of pop {i}, node {k} ")
-            
-        print(f"Iter={it}, Trial = {Trial}, {len(get_pareto_front(pop))} non-dominated solutions")
+        del i, arr, alpop, alpop_cost, k, phi, h
+        
+        end_time = time.time() - start_time
+        print(f"Gen {gen}, FES {FES}/{max_fes}, executed in {end_time:.3}s") 
     
         
     # %% ------------------------- PLOT --------------------------
-    # Tạo mảng data từ Cost của Extra_archive
-        data = np.array([ind['Cost'].flatten() for ind in get_pareto_front(pop)])  # mỗi ind là dict có key 'Cost'
-        data_set = np.array([ind['Cost'].flatten() for ind in pop])
-    
-        # Tạo figure
-        fig = plt.figure(1)
-        plt.clf()
+        #plot3D(pop)
+        plot_MaOO(F, RP)
         
-        # Vẽ Pareto front
-        plt.plot(data_set[:, 0], data_set[:, 1], 'o', color='g')
-        plt.plot(data[:, 0], data[:, 1], 'o', color='b', label = 'PF')
-        #plt.plot(data2[:, 0], data2[:, 1], 'o', color='r', label = 'NSWABC')
-        #plt.plot(data3[:, 0], data3[:, 1], 'o', color='g', label = 'NSWABC')
-        for i in range(len(data_set)):
-            x, y = data_set[i]
-            plt.text(x, y, f"{w[i,0]:.1f} {w[i,1]:.1f}", fontsize=8, ha='right', va='bottom', color='blue')
-        plt.legend()
-        # plt.xlim(RP[0,0], RP[0,1])
-        # plt.ylim(RP[1,0], RP[1,1])
-        plt.xlabel('Non-coverage')
-        plt.ylabel('Energy')
-        None
-        # Cập nhật đồ thị theo từng iteration
-        plt.pause(0.001)
-    
+    plot3D_adjustable(pop, name = 'DWABC')
     # %% ------------------------- DELETE --------------------------    
-    del alpop, alpop_cost, h, i, k, phi, size
-    folder_name = 'data'
-    file_name = f'DWABC_{Trial}.mat'
-    save_mat(folder_name, file_name,pop,stat,MaxIt)
+    del alpop, alpop_cost, h, i, k, phi, xmax
+    # folder_name = 'data'
+    # file_name = f'DWABC_{Trial}.mat'
+    # save_mat(folder_name, file_name,pop,stat,MaxIt)
     
     
     
