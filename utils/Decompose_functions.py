@@ -30,9 +30,9 @@ def associate_to_reference(F, W, RP):
 
 # %%
 def weight_assign(F, W, RP):
-    from scipy.optimize import linear_sum_assignment
 
     def hungarian_assign(perps):
+        from scipy.optimize import linear_sum_assignment
         n = perps.shape[0]
         eps = 1e-9
         cost = perps + (np.arange(n)[:, None] * eps)
@@ -44,11 +44,11 @@ def weight_assign(F, W, RP):
     def greedy_assign(perps):
         n = perps.shape[0]
         pairs = []
-        for i in range(n):
-            for j in range(n):
+        for j in range(n):
+            for i in range(n):
                 pairs.append((perps[i, j], i, j))
     
-        pairs.sort(key=lambda x: x[0])
+        pairs.sort(key=lambda x: x[0], reverse=True)
     
         ref_idx = np.full(n, -1)
         used_rp = np.zeros(n, dtype=bool)

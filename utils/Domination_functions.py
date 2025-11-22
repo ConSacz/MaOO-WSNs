@@ -5,8 +5,8 @@ from .Normalize_functions import global_normalized
 def weighted_selection(f1,f2,w,RP):
     f1_nmlized = global_normalized(f1, RP)
     f2_nmlized = global_normalized(f2, RP)
-    ff1 = np.sum(f1_nmlized*(1-w))
-    ff2 = np.sum(f2_nmlized*(1-w))
+    ff1 = np.sum(f1_nmlized*(w))
+    ff2 = np.sum(f2_nmlized*(w))
     if ff1 < ff2:
         return 1
     else:
