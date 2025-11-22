@@ -10,7 +10,7 @@ from utils.Multi_objective_functions import CostFunction_3F1C_MOO
 from utils.Domination_functions import weighted_selection
 from utils.Decompose_functions import weight_assign, das_dennis_generate
 from utils.Plot_functions import plot3D, plot3D_adjustable, plot_MaOO
-from utils.Workspace_functions import save_mat
+# from utils.Workspace_functions import save_mat
 
 # ---------- Cost Function 3 functions 1 constraint
 def CostFunction(pop, stat, RP, Obstacle_Area, Covered_Area):
@@ -20,7 +20,7 @@ def CostFunction(pop, stat, RP, Obstacle_Area, Covered_Area):
 for Trial in range(1): 
     np.random.seed(2)
     N_obj = 3
-    d = 13
+    p_ref = 13 # 19 for 200 pop, 13 for 100 pop
     max_fes = 50000
     nPop = 100
     xmin = 0
@@ -36,7 +36,7 @@ for Trial in range(1):
     sink = np.array([xmax//2, xmax//2])
     RP = np.zeros((3, 2))   
     RP[:,0] = [1, 1, 1]          # first col are ideal values
-    RP[:,1] = [0.00001, 0.00001, 0.00001]    # second col are nadir values
+    RP[:,1] = [1e-12, 1e-12, 1e-12]    # second col are nadir values
     
     
     # %% ------------------------- INITIATION --------------------------
@@ -48,10 +48,7 @@ for Trial in range(1):
     pop = []
     for k in range(nPop):
         alpop = np.zeros((N, 3))
-        if k == 0:
-            pos0 = np.random.uniform(30, 70, (N, 2))
-        else:
-            pos0 = np.random.uniform(10, 90, (N, 2)) 
+        pos0 = np.random.uniform(xmax/2-k*(xmax/nPop/2-1e-12), xmax/2+k*(xmax/nPop/2)+1e-12, (N, 2))
         pos0[0] = sink
         rs0 = np.random.uniform(rs[0], rs[1], (N, 1))
         alpop[:,:2] = pos0
@@ -69,7 +66,7 @@ for Trial in range(1):
         start_time = time.time()
         gen+=1
         F = np.array([p['Cost'] for p in pop])[:,0]
-        W = das_dennis_generate(N_obj, d)
+        W = das_dennis_generate(N_obj, p_ref)
         W = weight_assign(F, W, RP)
     # %% ------------------------- EXPLORATION LOOP --------------------------
         #print("Exploration starts")
@@ -92,7 +89,7 @@ for Trial in range(1):
         for i in range(nPop):
             arr = np.arange(1, N) 
             np.random.shuffle(arr) 
-            for j in range(1,N-1):
+            for j in range(N-1):
                 k = arr[j]
                 alpop = pop[i]['Position'].copy()
                 h = np.random.randint(N)
@@ -117,15 +114,17 @@ for Trial in range(1):
     
         
     # %% ------------------------- PLOT --------------------------
-        #plot3D(pop)
-        plot_MaOO(F, RP)
+        plot3D(pop)
+        #plot_MaOO(F, RP)
         
     plot3D_adjustable(pop, name = 'DWABC')
     # %% ------------------------- DELETE --------------------------    
-    del alpop, alpop_cost, h, i, k, phi, xmax
     # folder_name = 'data'
     # file_name = f'DWABC_{Trial}.mat'
     # save_mat(folder_name, file_name,pop,stat,MaxIt)
     
-    
+# %%
+from utils.Normalize_functions import global_normalized
+# for i in range(nPop):
+#     pop[i]['Cost'] = global_normalized(pop[i]['Cost'], RP)
     
