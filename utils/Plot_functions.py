@@ -171,5 +171,19 @@ def plot_MaOO(F, RP):
     plt.tight_layout()
     plt.show()
 
+# %% test
+# fig = plt.figure(1)
+# plt.clf()
+# ax = fig.add_subplot(111, projection='3d')
 
- 
+# ax.scatter(F2[:, 0], F2[:, 1], F2[:, 2], c='g', marker='o', label='Pareto Set')
+# ax.scatter(W[:, 0], W[:, 1], W[:, 2], c='r', marker='o', label='Weight')
+# n = min(len(F2), len(W))
+# for i in range(n):
+#     x1, y1, z1 = F2[i]
+#     x2, y2, z2 = W[i]
+
+#     ax.text(x1, y1, z1, f"{i}", color='blue', fontsize=5)
+#     ax.text(x2, y2, z2, f"{i}", color='black', fontsize=5)
+    
+# ax.view_init(elev=20, azim=190)
