@@ -80,7 +80,7 @@ NP_min = 100
 archive_rate = 0.5
 # Network Parameter
 N = 60
-rc = 20
+rc = 10
 stat = np.zeros((2, N), dtype=float)  # tạo mảng 2xN
 stat[1, 0] = rc         # rc
 rs = (8,12)
@@ -105,10 +105,7 @@ FES = 0
 pop = []
 for k in range(NP_init):
     alpop = np.zeros((N, 3))
-    if k == 0:
-        pos0 = np.random.uniform(30, 70, (N, 2))
-    else:
-        pos0 = np.random.uniform(10, 90, (N, 2)) 
+    pos0 = np.random.uniform(xu/2-k*(xu/NP_init/2-1e-12), xu/2+k*(xu/NP_init/2)+1e-12, (N, 2))
     pos0[0] = sink
     rs0 = np.random.uniform(rs[0], rs[1], (N, 1))
     alpop[:,:2] = pos0
@@ -167,6 +164,7 @@ while FES < max_fes:
                 v = mutation_weighted_rand_to_phi_best(pop, pid, phi_idx, r1_idx, r3_idx, F_i)
 
             v = np.minimum(np.maximum(v, xl), xu)
+            v[:,2] = np.clip(v[:,2], rs[0], rs[1])
             if _rng.random() <= 0.5:
                 u = crossover_binomial(pop[pid]['Position'], v, Cr_i)
             else:

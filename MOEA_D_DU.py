@@ -65,7 +65,7 @@ xmax = 100
 seed = 3
 # Network Parameter
 N = 60
-rc = 20
+rc = 10
 stat = np.zeros((2, N))  # tạo mảng 2xN
 stat[1, 0] = rc         # rc
 rs = (8,12)
@@ -101,10 +101,7 @@ FES=0
 pop = []
 for k in range(nPop):
     alpop = np.zeros((N, 3))
-    if k == 0:
-        pos0 = np.random.uniform(30, 70, (N, 2))
-    else:
-        pos0 = np.random.uniform(10, 90, (N, 2)) 
+    pos0 = np.random.uniform(xmax/2-k*(xmax/nPop/2-1e-12), xmax/2+k*(xmax/nPop/2)+1e-12, (N, 2))
     pos0[0] = sink
     rs0 = np.random.uniform(rs[0], rs[1], (N, 1))
     alpop[:,:2] = pos0
@@ -125,6 +122,7 @@ while FES < max_fes:
     gen+=1
     # create offspring positions via DE (one offspring per subproblem)
     U = de_rand1_bin_pop(pop, CR=CR, xmin=xmin, xmax=xmax)  # (nPop, D)
+    U[:,:,2] = np.clip(U[:,:,2], rs[0], rs[1])
     FU = np.array([CostFunction(U[i], stat, RP, Obstacle_Area, Covered_Area.copy()) for i in range(nPop)])     # (nPop, n_obj)
     FES += nPop
     # update reference point

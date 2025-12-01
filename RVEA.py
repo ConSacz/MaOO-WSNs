@@ -69,7 +69,7 @@ xu=100
 
 # Network Parameter
 N = 60
-rc = 20
+rc = 10
 stat = np.zeros((2, N), dtype=float)  # tạo mảng 2xN
 stat[1, 0] = rc         # rc
 rs = (8,12)
@@ -93,10 +93,7 @@ FES = 0
 pop = []
 for k in range(nPop):
     alpop = np.zeros((N, 3))
-    if k == 0:
-        pos0 = np.random.uniform(30, 70, (N, 2))
-    else:
-        pos0 = np.random.uniform(10, 90, (N, 2)) 
+    pos0 = np.random.uniform(xu/2-k*(xu/nPop/2-1e-12), xu/2+k*(xu/nPop/2)+1e-12, (N, 2)) 
     pos0[0] = sink
     rs0 = np.random.uniform(rs[0], rs[1], (N, 1))
     alpop[:,:2] = pos0
@@ -137,7 +134,7 @@ while FES < max_fes:
         c2 = polynomial_mutation(c2, eta=eta_m, pm=pm, xmin=xmin, xmax=xmax)
         offspring_positions.append(c1); offspring_positions.append(c2)
     U = np.array(offspring_positions)[:nPop]
-
+    U[:,:,2] = np.clip(U[:,:,2], rs[0], rs[1])
     # 5) evaluate offspring
     FU = np.array([CostFunction_3F1C_MOO(U[i], stat, RP, Obstacle_Area, Covered_Area.copy()) for i in range(nPop)])
     FES += nPop
