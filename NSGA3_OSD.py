@@ -15,7 +15,7 @@ from utils.Plot_functions import plot3D, plot3D_adjustable
 # %%============================================================
 # OSD 
 # ============================================================
-def osd_selection(F, fronts, nPop, ideal, W):
+def osd_selection(F, fronts, nPop, RP, W):
     chosen = []
 
     for front in fronts:
@@ -27,7 +27,7 @@ def osd_selection(F, fronts, nPop, ideal, W):
             lastF = F[last]
 
             # Decomposition assignment
-            ref_idx, dpp = associate_to_reference(lastF, W, ideal)
+            ref_idx, dpp, _ = associate_to_reference(lastF, W, RP)
 
             selected = []
             K = W.shape[0]
@@ -105,10 +105,11 @@ FES = 0
 pop = []
 for k in range(nPop):
     alpop = np.zeros((N, 3))
-    if k == 0:
-        pos0 = np.random.uniform(30, 70, (N, 2))
-    else:
-        pos0 = np.random.uniform(10, 90, (N, 2)) 
+    pos0 = np.random.uniform(xu/2-k*(xu/nPop/2-1e-12), xu/2+k*(xu/nPop/2)+1e-12, (N, 2))
+    # if k == 0:
+    #     pos0 = np.random.uniform(30, 70, (N, 2))
+    # else:
+    #     pos0 = np.random.uniform(10, 90, (N, 2)) 
     pos0[0] = sink
     rs0 = np.random.uniform(rs[0], rs[1], (N, 1))
     alpop[:,:2] = pos0
@@ -166,12 +167,12 @@ while FES < max_fes:
     fronts = NS_Sort(pop_all)
 
     # 4) Selection using OSD
-    chosen_indices = osd_selection(F_all[:,0], fronts, nPop, ideal, W)
+    chosen_indices = osd_selection(F_all[:,0], fronts, nPop, RP, W)
     pop = [pop_all[i] for i in chosen_indices]
 
     # Print progress
     end_time = time.time() - start_time
-    print(f"Gen {gen}, FES {FES}/{max_fes}, executed in {end_time}s")  
+    print(f"Gen {gen}, FES {FES}/{max_fes}, executed in {end_time:.3f}s")  
     plot3D(pop)
     
 # %%plot final front from pop

@@ -32,7 +32,7 @@ from utils.Plot_functions import plot3D, plot3D_adjustable
 # Association & niching
 # ----------------------------
 
-def niching_selection(F, W, ideal, chosen_indices, last_front, nPop):
+def niching_selection(F, W, RP, chosen_indices, last_front, nPop):
     """
     chosen_indices, last_front: lists of indices relative to F (i.e. indices in pop_all / F_all)
     returns: list of chosen indices (indices in same coordinate system as chosen_indices / last_front)
@@ -43,7 +43,7 @@ def niching_selection(F, W, ideal, chosen_indices, last_front, nPop):
 
     all_idx = np.array(list(chosen_indices) + list(last_front), dtype=int)
     F_all = F[all_idx]
-    ref_idx_all, dist_all = associate_to_reference(F_all, W, ideal)
+    ref_idx_all, dist_all, _ = associate_to_reference(F_all, W, RP)
     K = W.shape[0]
 
     niche_count = np.zeros(K, dtype=int)
@@ -113,7 +113,7 @@ xu=100
 
 # Network Parameter
 N = 60
-rc = 20
+rc = 10
 stat = np.zeros((2, N), dtype=float)  # tạo mảng 2xN
 stat[1, 0] = rc         # rc
 rs = (8,12)
@@ -142,10 +142,7 @@ FES = 0
 pop = []
 for k in range(nPop):
     alpop = np.zeros((N, 3))
-    if k == 0:
-        pos0 = np.random.uniform(30, 70, (N, 2))
-    else:
-        pos0 = np.random.uniform(10, 90, (N, 2)) 
+    pos0 = np.random.uniform(xu/2-k*(xu/nPop/2-1e-12), xu/2+k*(xu/nPop/2)+1e-12, (N, 2))
     pos0[0] = sink
     rs0 = np.random.uniform(rs[0], rs[1], (N, 1))
     alpop[:,:2] = pos0
@@ -211,7 +208,7 @@ while FES < max_fes:
         else:
             # need to pick some from this front
             needed = nPop - len(chosen_rel_indices)
-            chosen = niching_selection(F_all[:,0], W, ideal, chosen_rel_indices, front, nPop)
+            chosen = niching_selection(F_all[:,0], W, RP, chosen_rel_indices, front, nPop)
             # niching_selection returns indices in coordinates of pop_all already
             chosen_rel_indices.extend(chosen)
             break

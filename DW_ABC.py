@@ -20,16 +20,16 @@ def CostFunction(pop, stat, RP, Obstacle_Area, Covered_Area):
 for Trial in range(1): 
     np.random.seed(2)
     N_obj = 3
-    p_ref = 13 # 19 for 200 pop, 13 for 100 pop
+    p_ref = 19 # 19 for 200 pop, 13 for 100 pop
     max_fes = 50000
-    nPop = 100
+    nPop = 200
     xmin = 0
     xmax = 100
     a = 1
     
     # Network Parameter
     N = 60
-    rc = 20
+    rc = 10
     stat = np.zeros((2, N))  # tạo mảng 2xN
     stat[1, 0] = rc         # rc
     rs = (8,12)
