@@ -2,12 +2,13 @@ from scipy.io import savemat, loadmat
 import os
 
 #%%
-def save_mat(folder_name, file_name, pop, stat, MaxIt):
+def save_mat(folder_name, file_name, pop, stat, W, max_fes):
     os.makedirs(folder_name, exist_ok=True)
     savemat(os.path.join(folder_name, file_name), {
         'pop': pop,
         'stat': stat,
-        'MaxIt': MaxIt
+        'W': W,
+        'max_fes': max_fes
     })
     
 #%%
