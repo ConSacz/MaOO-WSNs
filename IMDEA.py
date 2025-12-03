@@ -11,6 +11,7 @@ from utils.GA_functions import crossover_binomial, crossover_exponential
 from utils.Multi_objective_functions import CostFunction_3F1C_MOO
 from utils.Normalize_functions import global_normalized
 from utils.Plot_functions import plot3D, plot3D_adjustable
+from utils.Workspace_functions import save_mat
 
 # %% ---------- dominance helpers ----------
 
@@ -69,136 +70,143 @@ def mutation_weighted_rand_to_phi_best(pop, idx, x_phi, x_r1, x_r3, F):
 def CostFunction(pop, stat, RP, Obstacle_Area, Covered_Area):
     return CostFunction_3F1C_MOO(pop, stat, RP, Obstacle_Area, Covered_Area)
 
-# %% ---------- Main Parameters ----------
-# algorithm parameter
-bounds = (0, 100)
-xl, xu = bounds
-max_fes = 50000
-seed = 2
-NP_init = 200
-NP_min = 100
-archive_rate = 0.5
-# Network Parameter
-N = 60
-rc = 10
-stat = np.zeros((2, N), dtype=float)  # tạo mảng 2xN
-stat[1, 0] = rc         # rc
-rs = (8,12)
-sink = np.array([xu//2, xu//2])
-RP = np.zeros((3, 2))   
-RP[:,0] = [1, 1, 1]          # first col are ideal values
-RP[:,1] = [0.00001, 0.00001, 0.00001]    # second col are nadir values
-
-# %% Initialization
-# rng
-_rng = np.random.default_rng(seed)
-
-# environment
-Covered_Area = np.zeros((xu, xu), dtype=int)
-Obstacle_Area = np.ones((xu, xu), dtype=int)
-
-# archive
-archive = []
-
-# population init
-FES = 0
-pop = []
-for k in range(NP_init):
-    alpop = np.zeros((N, 3))
-    pos0 = np.random.uniform(xu/2-k*(xu/NP_init/2-1e-12), xu/2+k*(xu/NP_init/2)+1e-12, (N, 2))
-    pos0[0] = sink
-    rs0 = np.random.uniform(rs[0], rs[1], (N, 1))
-    alpop[:,:2] = pos0
-    alpop[:,2] = rs0[:, 0]
-    alpop_cost = CostFunction(alpop, stat, RP, Obstacle_Area, Covered_Area.copy())
-    RP[:,0] = np.minimum(RP[:,0], alpop_cost[0])
-    RP[:,1] = np.maximum(RP[:,1], alpop_cost[0])
-    pop.append({'Position': alpop, 'Cost': alpop_cost})
-FES += NP_init
-
-archive_size = max(1, int(np.round(archive_rate * NP_min)))
-
-# operator setup
-n_ops = 3
-NPop = np.full(n_ops, NP_init // n_ops, dtype=int)
-for i in range(NP_init - np.sum(NPop)):
-    NPop[i % n_ops] += 1
-
-Pls = 0.1
-CFEls = max(1, int(0.01 * max_fes))
-history = {'best': [], 'FES': []}
-
-gen = 0
-
-# %% ---------- Main loop ----------
-while FES < max_fes:
-    start_time = time.time()
-    gen += 1
-    NP = len(pop)
-    perm = _rng.permutation(NP)
-    splits = np.split(perm, np.cumsum(NPop)[:-1])
-    F_schedule = np.clip(_rng.normal(0.5, 0.3, NP), 0.05, 0.9)
-    Cr_schedule = np.clip(_rng.random(NP), 0.0, 1.0)
-
-    for op, idxs in enumerate(splits):
-        if len(idxs) == 0:
-            continue
-        for pid in idxs:
-            F_i = F_schedule[pid]
-            Cr_i = Cr_schedule[pid]
-            phi_idx = get_phi_idx(pop)
-
-            idx_pool = list(set(range(NP)) - {pid})
-            r = _rng.choice(idx_pool, size=3, replace=False)
-            r1_idx, r2_idx, r3_idx = r[0], r[1], r[2]
-
-            if op == 0:
-                if len(archive) > 0 and _rng.random() < 0.5:
-                    r2_vec = _rng.choice(archive)['Position']
-                else:
-                    r2_vec = pop[r2_idx]['Position']
-                v = mutation_current_to_phi_best_with_archive(pop, pid, phi_idx, r1_idx, r2_vec, F_i)
-            elif op == 1:
-                v = mutation_current_to_phi_best_no_archive(pop, pid, phi_idx, r1_idx, r3_idx, F_i)
+rc_set = [20, 10]
+for cases in range(2):
+    for Trial in range(5):
+        # %% ---------- Main Parameters ----------
+        # algorithm parameter
+        bounds = (0, 100)
+        xl, xu = bounds
+        max_fes = 500000
+        seed = Trial
+        NP_init = 200
+        NP_min = 100
+        archive_rate = 0.5
+        
+        # Network Parameter
+        N = 60
+        rc = rc_set[cases]
+        stat = np.zeros((2, N), dtype=float)  # tạo mảng 2xN
+        stat[1, 0] = rc         # rc
+        rs = (8,12)
+        sink = np.array([xu//2, xu//2])
+        RP = np.zeros((3, 2))   
+        RP[:,0] = [1, 1, 1]          # first col are ideal values
+        RP[:,1] = [1e-12, 1e-12, 1e-12]    # second col are nadir values
+        
+        # %% Initialization
+        # rng
+        _rng = np.random.default_rng(seed)
+        
+        # environment
+        Covered_Area = np.zeros((xu, xu), dtype=int)
+        Obstacle_Area = np.ones((xu, xu), dtype=int)
+        
+        # archive
+        archive = []
+        
+        # population init
+        FES = 0
+        pop = []
+        for k in range(NP_init):
+            alpop = np.zeros((N, 3))
+            pos0 = np.random.uniform(xu/2-k*(xu/NP_init/2-1e-12), xu/2+k*(xu/NP_init/2)+1e-12, (N, 2))
+            pos0[0] = sink
+            rs0 = np.random.uniform(rs[0], rs[1], (N, 1))
+            alpop[:,:2] = pos0
+            alpop[:,2] = rs0[:, 0]
+            alpop_cost = CostFunction(alpop, stat, RP, Obstacle_Area, Covered_Area.copy())
+            RP[:,0] = np.minimum(RP[:,0], alpop_cost[0])
+            RP[:,1] = np.maximum(RP[:,1], alpop_cost[0])
+            pop.append({'Position': alpop, 'Cost': alpop_cost})
+        FES += NP_init
+        
+        archive_size = max(1, int(np.round(archive_rate * NP_min)))
+        
+        # operator setup
+        n_ops = 3
+        NPop = np.full(n_ops, NP_init // n_ops, dtype=int)
+        for i in range(NP_init - np.sum(NPop)):
+            NPop[i % n_ops] += 1
+        
+        Pls = 0.1
+        CFEls = max(1, int(0.01 * max_fes))
+        history = {'best': [], 'FES': []}
+        
+        gen = 0
+        
+        # %% ---------- Main loop ----------
+        while FES < max_fes:
+            start_time = time.time()
+            gen += 1
+            NP = len(pop)
+            perm = _rng.permutation(NP)
+            splits = np.split(perm, np.cumsum(NPop)[:-1])
+            F_schedule = np.clip(_rng.normal(0.5, 0.3, NP), 0.05, 0.9)
+            Cr_schedule = np.clip(_rng.random(NP), 0.0, 1.0)
+        
+            for op, idxs in enumerate(splits):
+                if len(idxs) == 0:
+                    continue
+                for pid in idxs:
+                    F_i = F_schedule[pid]
+                    Cr_i = Cr_schedule[pid]
+                    phi_idx = get_phi_idx(pop)
+        
+                    idx_pool = list(set(range(NP)) - {pid})
+                    r = _rng.choice(idx_pool, size=3, replace=False)
+                    r1_idx, r2_idx, r3_idx = r[0], r[1], r[2]
+        
+                    if op == 0:
+                        if len(archive) > 0 and _rng.random() < 0.5:
+                            r2_vec = _rng.choice(archive)['Position']
+                        else:
+                            r2_vec = pop[r2_idx]['Position']
+                        v = mutation_current_to_phi_best_with_archive(pop, pid, phi_idx, r1_idx, r2_vec, F_i)
+                    elif op == 1:
+                        v = mutation_current_to_phi_best_no_archive(pop, pid, phi_idx, r1_idx, r3_idx, F_i)
+                    else:
+                        v = mutation_weighted_rand_to_phi_best(pop, pid, phi_idx, r1_idx, r3_idx, F_i)
+        
+                    v = np.minimum(np.maximum(v, xl), xu)
+                    v[:,2] = np.clip(v[:,2], rs[0], rs[1])
+                    if _rng.random() <= 0.5:
+                        u = crossover_binomial(pop[pid]['Position'], v, Cr_i)
+                    else:
+                        u = crossover_exponential(pop[pid]['Position'], v, Cr_i)
+        
+                    u_cost = CostFunction(u, stat, RP, Obstacle_Area, Covered_Area.copy())
+                    RP[:,0] = np.minimum(RP[:,0], u_cost[0])
+                    RP[:,1] = np.maximum(RP[:,1], u_cost[0])
+                    # u_cost = global_normalized(u_cost, RP)
+                    FES += 1
+        
+                    # selection
+                    if check_domination(u_cost, pop[pid]['Cost']) == 1:
+                        archive.append(pop[pid].copy())
+                        if len(archive) > archive_size:
+                            archive = prune_archive(archive, RP, archive_size)
+                        pop[pid] = {'Position': u, 'Cost': u_cost}
+        
+            # best individual
+            F = np.array([ind['Cost'] for ind in pop])[:, 0]
+            nd_mask = nondominated_front(F)
+            nd_indices = np.where(nd_mask)[0]
+            if len(nd_indices) > 0:
+                sums = np.sum(F[nd_indices], axis=1)
+                best_idx = nd_indices[np.argmin(sums)]
             else:
-                v = mutation_weighted_rand_to_phi_best(pop, pid, phi_idx, r1_idx, r3_idx, F_i)
-
-            v = np.minimum(np.maximum(v, xl), xu)
-            v[:,2] = np.clip(v[:,2], rs[0], rs[1])
-            if _rng.random() <= 0.5:
-                u = crossover_binomial(pop[pid]['Position'], v, Cr_i)
-            else:
-                u = crossover_exponential(pop[pid]['Position'], v, Cr_i)
-
-            u_cost = CostFunction(u, stat, RP, Obstacle_Area, Covered_Area.copy())
-            RP[:,0] = np.minimum(RP[:,0], u_cost[0])
-            RP[:,1] = np.maximum(RP[:,1], u_cost[0])
-            # u_cost = global_normalized(u_cost, RP)
-            FES += 1
-
-            # selection
-            if check_domination(u_cost, pop[pid]['Cost']) == 1:
-                archive.append(pop[pid].copy())
-                if len(archive) > archive_size:
-                    archive = prune_archive(archive, RP, archive_size)
-                pop[pid] = {'Position': u, 'Cost': u_cost}
-
-    # best individual
-    F = np.array([ind['Cost'] for ind in pop])[:, 0]
-    nd_mask = nondominated_front(F)
-    nd_indices = np.where(nd_mask)[0]
-    if len(nd_indices) > 0:
-        sums = np.sum(F[nd_indices], axis=1)
-        best_idx = nd_indices[np.argmin(sums)]
-    else:
-        best_idx = np.argmin(np.sum(F, axis=1))
-    best = pop[best_idx]
-    history['best'].append(best)
-    history['FES'].append(FES)
-    end_time = time.time() - start_time
-    print(f"Gen {gen}, FES {FES}/{max_fes}, executed in {end_time:.3f}s") 
-    plot3D(pop)
-
-# %%---------- final Plot ----------
-plot_name = 'IMDEA'
-plot3D_adjustable(pop, plot_name)
+                best_idx = np.argmin(np.sum(F, axis=1))
+            best = pop[best_idx]
+            history['best'].append(best)
+            history['FES'].append(FES)
+            end_time = time.time() - start_time
+            print(f"Gen {gen}, FES {FES}/{max_fes}, executed in {end_time:.3f}s") 
+            # plot3D(pop)
+            # %% ------------------------- SAVE MATRIX -------------------------- 
+            folder_name = f'data/case{cases+1}'
+            file_name = f'IMDEA_{Trial}.mat'
+            save_mat(folder_name, file_name, pop, stat, RP, max_fes)
+        # %%---------- final Plot ----------
+        # plot_name = 'IMDEA'
+        # plot3D_adjustable(pop, plot_name)
