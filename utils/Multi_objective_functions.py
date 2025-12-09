@@ -1,5 +1,5 @@
 import numpy as np
-from utils.Single_objective_functions import CR_Func, CE_Func, SE_Func
+from utils.Single_objective_functions import CR_Func, CE_Func, SE_Func, LT_CE_SE_Func
 from utils.Graph_functions import Graph, Connectivity_graph
 
 # %% Cost function of 2 functions problem
@@ -47,7 +47,7 @@ def CostFunction_nml2F1C_MOO(pop, stat, RP, Obstacle_Area, Covered_Area):
 def CostFunction_3F1C_MOO(pop, stat, RP, Obstacle_Area, Covered_Area):
     rc = stat[1,0]
     G = Graph(pop,rc)
-    
+    # [CR CE SE]
     if Connectivity_graph(G)==1:
         Cost = np.zeros((1, 3))
         Cost[0,0], _ = CR_Func(pop, Obstacle_Area, Covered_Area)
@@ -73,3 +73,21 @@ def CostFunction_3F1C_weighted(pop, stat, w, Obstacle_Area, Covered_Area):
         return Cost
     else:
         return np.int(3)
+
+# %% Cost function of 4 functions problem with constraint
+def CostFunction_4F1C_MOO(pop, stat, RP, Obstacle_Area, Covered_Area):
+    rc = stat[1,0]
+    G = Graph(pop,rc)
+    # [CR LT CE SE]
+    if Connectivity_graph(G)==1:
+        Cost = np.zeros((1, 4))
+        Cost[0,0], _ = CR_Func(pop, Obstacle_Area, Covered_Area)
+        Cost[0,1], Cost[0,2], Cost[0,3] = LT_CE_SE_Func(pop, rc)
+        return Cost
+    else:
+        Cost = np.ones((1, 4), dtype= float)
+        Cost[0,0] = RP[0,1]
+        Cost[0,1] = RP[1,1]
+        Cost[0,2] = RP[2,1]
+        Cost[0,3] = RP[3,1]
+        return Cost

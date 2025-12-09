@@ -127,3 +127,25 @@ def polynomial_mutation(x, eta=20, pm=None, xmin=None, xmax=None):
             xi = np.clip(xi, xl, xu)
             y[i] = xi
     return y
+
+# %% DE
+def de_rand1_bin_pop(pop, CR=0.9, xmin=None, xmax=None):
+    # pop: list of dicts, each dict has 'Position' (ndarray)
+    positions = np.array([p['Position'] for p in pop])  # (N, D)
+    nPop, N, D = positions.shape
+    idx = np.arange(nPop)
+    children = np.empty_like(positions)
+    for i in range(nPop):
+        # choose three distinct indices != i
+        a, b, c = np.random.choice(idx[idx != i], 3, replace=False)
+        F = np.random.uniform(-1, 1, (N, D))
+        mutant = positions[a] + F * (positions[b] - positions[c])
+        # binomial crossover
+        cross = np.random.rand(N, D) < CR
+        jrand = np.random.randint(N)
+        cross[jrand] = True
+        trial = np.where(cross, mutant, positions[i])
+        trial[:,2] = np.clip(trial[:,2], 8, 12)
+        trial[:,:2] = np.clip(trial[:,:2],xmin, xmax)
+        children[i, :] = trial
+    return children

@@ -1,6 +1,17 @@
 import numpy as np
 from .Normalize_functions import global_normalized
 
+# %% scalarizing: PBI
+def pbi_values(F_norm, v):
+    """Compute d1 (projection length) and d2 (perpendicular distance) for rows of F_norm w.r.t unit v"""
+    proj = F_norm.dot(v)  # (N,)
+    # projected points:
+    F_proj = np.outer(proj, v)
+    diff = F_norm - F_proj
+    d2 = np.linalg.norm(diff, axis=1)
+    d1 = proj
+    return d1, d2
+
 # %% scalarizing: Tchebycheff
 def tchebycheff(f, w, RP):
     #diff = np.abs(f - z)

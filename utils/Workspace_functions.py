@@ -2,13 +2,13 @@ from scipy.io import savemat, loadmat
 import os
 
 #%%
-def save_mat(folder_name, file_name, pop, stat, W, max_fes):
+def save_mat(folder_name, file_name, pop, stat, W, RP):
     os.makedirs(folder_name, exist_ok=True)
     savemat(os.path.join(folder_name, file_name), {
         'pop': pop,
         'stat': stat,
         'W': W,
-        'max_fes': max_fes
+        'RP': RP
     })
     
 #%%
@@ -25,13 +25,15 @@ def load_mat(folder_name, file_name):
     pop = data['pop']
     pop_dicts = [matlab_struct_to_dict(item) for item in pop]
     stat = data['stat']
-    MaxIt = data['MaxIt']
+    W = data['W']
+    RP = data['RP']
     
     # Trả về các biến dưới dạng dictionary
     return {
         'pop': pop_dicts,
         'stat': stat,
-        'MaxIt': MaxIt
+        'W': W,
+        'RP': RP
     }
 
 # %% chuyển từ struct kiểu MATLAB qua dict kiểu Python

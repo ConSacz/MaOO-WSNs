@@ -1,6 +1,6 @@
 import numpy as np
 import networkx as nx
-
+from utils.Graph_functions import Graph
 
 def CR_Func(pop, Obstacle_Area, Covered_Area):
 
@@ -68,53 +68,6 @@ def CR_Func(pop, Obstacle_Area, Covered_Area):
     return coverage, Covered_Area
 
 # %%
-def LT_Func(G):
-    """
-    Calculate the normalized network lifetime as a cost function.
-    Parameters:
-        G (networkx.Graph): weighted graph with edge weights as distances.
-    Returns:
-        lifetime_normalized (float): inverse-lifetime (lower is better).
-    """
-    N = G.number_of_nodes()
-    
-    # Parameters
-    b = 0.1   # nJ/bit/m^a
-    a = 2     # path loss exponent
-    EM = 0    # nJ/bit maintain/process
-    ET = 20   # nJ/bit transmit
-    ER = 2    # nJ/bit receive
-    maxBat = 1000
-    # 
-    Bat = np.zeros(N)
-
-    for j in range(1, N):  # from node 1 to N-1 (Python uses 0-indexing)
-        try:
-            path = nx.shortest_path(G, source=0, target=j, weight='weight')
-        except nx.NetworkXNoPath:
-            continue  # skip if no path exists
-        for i in range(len(path)):
-            if i == 0:
-                continue  # do nothing for the source node
-            elif i == len(path) - 1:
-                dt = G[path[i]][path[i - 1]]['weight']
-                Bat[path[i]] += ((N+1) * EM + ET + b * dt ** a)
-            else:
-                dt = G[path[i]][path[i - 1]]['weight']
-                dr = G[path[i]][path[i + 1]]['weight']
-                Bat[path[i]] += (ER + ET + b * dt ** a + b * dr ** a)
-
-    if np.max(Bat) == 0:
-        lifetime = np.inf
-    else:
-        lifetime = maxBat / np.max(Bat)
-
-    # Normalize (same logic as MATLAB version)
-    lifetime_normalized = round(1 / lifetime, 5) if lifetime != 0 else 0
-
-    return lifetime_normalized
-
-# %%
 def CE_Func(G):
     """
     Calculate the Communication Energy as a cost function.
@@ -130,7 +83,7 @@ def CE_Func(G):
     a = 2     # path loss exponent
     EM = 0    # nJ/bit maintain/process
     ET = 20   # nJ/bit transmit
-    ER = 2    # nJ/bit receive
+    ER = 2    # nJ/bit receive  
     # 
     Bat = np.zeros(N)
 
@@ -155,6 +108,56 @@ def CE_Func(G):
 
     return E
 
+# %%
+def LT_CE_SE_Func(pop, rc):
+    """
+    Calculate the normalized network lifetime as a cost function.
+    Parameters:
+        G (networkx.Graph): weighted graph with edge weights as distances.
+    Returns:
+        lifetime_normalized (float): inverse-lifetime (lower is better).
+    """
+    G = Graph(pop,rc)
+    N = G.number_of_nodes()
+    
+    # Parameters
+    b = 0.1   # nJ/bit/m^a
+    a = 2     # path loss exponent
+    EM = 0    # nJ/bit maintain/process
+    ET = 20   # nJ/bit transmit
+    ER = 2    # nJ/bit receive
+    # 
+    Bat = np.zeros(N)   # node CE matrix
+
+    for j in range(1, N):  # from node 1 to N-1 (Python uses 0-indexing)
+        try:
+            path = nx.shortest_path(G, source=0, target=j, weight='weight')
+        except nx.NetworkXNoPath:
+            continue  # skip if no path exists
+        for i in range(len(path)):
+            if i == 0:
+                continue  # do nothing for the source node
+            elif i == len(path) - 1:
+                dt = G[path[i]][path[i - 1]]['weight']
+                Bat[path[i]] += ((N+1) * EM + ET + b * dt ** a)
+            else:
+                dt = G[path[i]][path[i - 1]]['weight']
+                dr = G[path[i]][path[i + 1]]['weight']
+                Bat[path[i]] += (ER + ET + b * dt ** a + b * dr ** a)
+
+    # Total CE
+    CE = 10**(-6)*np.sum(Bat)
+    
+    # Total SE
+    rs0 = pop[:, 2]
+    SE_Bat = np.ones(N)*rs0*rs0
+    SE = 10**(-6)*np.sum(SE_Bat)
+
+    # Lifetime
+    
+    LT = 10**(-6)*np.max(Bat + SE_Bat)
+
+    return LT, CE, SE
 # %%
 def SE_Func(pop):
     """

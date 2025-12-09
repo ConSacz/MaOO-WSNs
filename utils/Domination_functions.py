@@ -1,5 +1,6 @@
 import numpy as np
 from .Normalize_functions import global_normalized
+from .Decompose_functions import associate_to_reference
 
 # %% WEIGHTED SELECTION
 def weighted_selection(f1,f2,w,RP):
@@ -181,3 +182,129 @@ def sort_pop(pop):
         F.append(front)
 
     return pop, F
+
+# %% IMDEA prune_archive
+def prune_archive(archive, RP, max_size):
+    if len(archive) <= max_size:
+        return archive
+    F = np.array([ind['Cost'] for ind in archive])[:, 0]
+    F = global_normalized(F, RP)
+    mask_nd = nondominated_front(F)
+    nd_inds = [archive[i] for i, m in enumerate(mask_nd) if m]
+    if len(nd_inds) <= max_size:
+        rem = [archive[i] for i, m in enumerate(mask_nd) if not m]
+        if rem:
+            sums = np.array([np.sum(ind['Cost']) for ind in rem])
+            order = np.argsort(sums)
+            nd_inds += [rem[i] for i in order[:max_size - len(nd_inds)]]
+        return nd_inds
+    else:
+        nd_objs = np.array([ind['Cost'] for ind in nd_inds])[:, 0]
+        sums = np.sum(nd_objs, axis=1)
+        order = np.argsort(sums)
+        return [nd_inds[i] for i in order[:max_size]]
+    
+# %% OSD
+def osd_selection(F, fronts, nPop, RP, W):
+    chosen = []
+
+    for front in fronts:
+        if len(chosen) + len(front) <= nPop:
+            chosen.extend(front)
+        else:
+            needed = nPop - len(chosen)
+            last = np.array(front)
+            lastF = F[last]
+
+            # Decomposition assignment
+            ref_idx, dpp, _ = associate_to_reference(lastF, W, RP)
+
+            selected = []
+            K = W.shape[0]
+
+            # chọn mỗi region một đại diện (nhỏ nhất dpp)
+            for k in range(K):
+                idx_k = np.where(ref_idx == k)[0]
+                if len(idx_k) == 0:
+                    continue
+                best_local = idx_k[np.argmin(dpp[idx_k])]
+                selected.append(best_local)
+                if len(selected) >= needed:
+                    break
+
+            if len(selected) < needed:
+                remain = np.setdiff1d(np.arange(len(last)), selected)
+                fill_order = np.argsort(dpp[remain])
+                need_more = needed - len(selected)
+                fill = remain[fill_order[:need_more]]
+                selected = np.concatenate([selected, fill])
+
+            chosen.extend(list(last[selected]))
+            break
+
+    return chosen
+
+# %% Association & niching
+def niching_selection(F, W, RP, chosen_indices, last_front, nPop):
+    """
+    chosen_indices, last_front: lists of indices relative to F (i.e. indices in pop_all / F_all)
+    returns: list of chosen indices (indices in same coordinate system as chosen_indices / last_front)
+    """
+    remaining = nPop - len(chosen_indices)
+    if remaining <= 0:
+        return []
+
+    all_idx = np.array(list(chosen_indices) + list(last_front), dtype=int)
+    F_all = F[all_idx]
+    ref_idx_all, dist_all, _ = associate_to_reference(F_all, W, RP)
+    K = W.shape[0]
+
+    niche_count = np.zeros(K, dtype=int)
+    if len(chosen_indices) > 0:
+        chosen_refs = ref_idx_all[:len(chosen_indices)]
+        for r in chosen_refs:
+            niche_count[r] += 1
+
+    cand_rel_idx = np.arange(len(chosen_indices), len(all_idx))
+    ref_to_cands = {k: [] for k in range(K)}
+    for i_rel_idx, i_all_rel in enumerate(cand_rel_idx):
+        r = int(ref_idx_all[i_all_rel])
+        ref_to_cands[r].append(i_all_rel)
+
+    selected_rel = []
+    while remaining > 0:
+        zero_refs = [r for r in range(K) if niche_count[r] == 0 and len(ref_to_cands[r]) > 0]
+        if zero_refs:
+            for r in zero_refs:
+                if remaining == 0:
+                    break
+                cand_list = ref_to_cands[r]
+                best_rel = min(cand_list, key=lambda idx_rel: dist_all[idx_rel])
+                selected_rel.append(best_rel)
+                remaining -= 1
+                niche_count[r] += 1
+                for lst in ref_to_cands.values():
+                    if best_rel in lst:
+                        lst.remove(best_rel)
+        else:
+            viable_refs = [r for r in range(K) if len(ref_to_cands[r]) > 0]
+            if not viable_refs:
+                break
+            min_n = min(niche_count[r] for r in viable_refs)
+            refs_min = [r for r in viable_refs if niche_count[r] == min_n]
+            r = np.random.choice(refs_min)
+            cand_list = ref_to_cands[r]
+            best_rel = min(cand_list, key=lambda idx_rel: dist_all[idx_rel])
+            selected_rel.append(best_rel)
+            remaining -= 1
+            niche_count[r] += 1
+            for lst in ref_to_cands.values():
+                if best_rel in lst:
+                    lst.remove(best_rel)
+
+    # convert relative indices back to indices in the original F_all (i.e., indices in all_idx)
+    selected = [int(all_idx[int(rel)]) for rel in selected_rel]
+    return selected
+
+
+
