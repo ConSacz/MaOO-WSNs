@@ -4,42 +4,18 @@ try:
 except:
     pass
 # %%
-"""
-RVEA (Reference Vector Guided Evolutionary Algorithm)
-- pop: list of dicts, each dict has keys:
-    'Position' : ndarray shape (n_var,)
-    'Cost'     : ndarray shape (n_obj,)
-- Uses SBX crossover + polynomial mutation, Das & Dennis reference vectors, PBI selection
-"""
 import numpy as np
 import time
-from utils.Decompose_functions import das_dennis_generate
+from utils.Decompose_functions import das_dennis_generate, pbi_values
+from utils.Normalize_functions import global_normalized
 from utils.GA_functions import sbx_crossover, polynomial_mutation
-from utils.Multi_objective_functions import CostFunction_3F1C_MOO
+from utils.Multi_objective_functions import CostFunction_4F1C_MOO
 from utils.Plot_functions import plot3D, plot3D_adjustable
 from utils.Workspace_functions import save_mat
 
 # %%
-# ---------- objective / normalization helpers ----------
-def normalize_objectives(F, ideal, nadir=None):
-    """Normalize F rows by (nadir - ideal). If nadir None, use max across rows."""
-    if nadir is None:
-        nadir = np.max(F, axis=0)
-    denom = np.where(nadir - ideal == 0, 1e-12, nadir - ideal)
-    return (F - ideal) / denom
-
 def get_ideal(F):
     return np.min(F, axis=0)
-
-def pbi_values(F_norm, v):
-    """Compute d1 (projection length) and d2 (perpendicular distance) for rows of F_norm w.r.t unit v"""
-    proj = F_norm.dot(v)  # (N,)
-    # projected points:
-    F_proj = np.outer(proj, v)
-    diff = F_norm - F_proj
-    d2 = np.linalg.norm(diff, axis=1)
-    d1 = proj
-    return d1, d2
 
 # ---------- pop utilities ----------
 def pop_positions(pop):
@@ -50,17 +26,20 @@ def pop_costs(pop):
 
 # ---------- Cost Function 3 functions 1 constraint
 def CostFunction(pop, stat, RP, Obstacle_Area, Covered_Area):
-    return CostFunction_3F1C_MOO(pop, stat, RP, Obstacle_Area, Covered_Area)
+    return CostFunction_4F1C_MOO(pop, stat, RP, Obstacle_Area, Covered_Area)
 rc_set = [20, 10]
 for cases in range(2):
-    for Trial in range(2):
+    for Trial in range(5):
         # %% ---------- RVEA main (pop-only) ----------
         # Algorithm Parameter
         seed=Trial
-        n_obj = 3
+        N_obj = 4
         nPop = 200
-        max_fes = 500
-        p_ref=19
+        max_fes = 500000
+        if N_obj == 3:
+            p_ref = 13 # 19 for 200 pop, 13 for 100 pop
+        elif N_obj ==4:
+            p_ref = 9 # 9 for 200 pop, 7 for 100 pop
         crossover_prob=0.9
         eta_c=20
         eta_m=20
@@ -77,9 +56,9 @@ for cases in range(2):
         stat[1, 0] = rc         # rc
         rs = (8,12)
         sink = np.array([xu//2, xu//2])
-        RP = np.zeros((3, 2))   
-        RP[:,0] = [1, 1, 1]          # first col are ideal values
-        RP[:,1] = [0.00001, 0.00001, 0.00001]    # second col are nadir values
+        RP = np.zeros((N_obj, 2))
+        RP[:,0] = np.ones(N_obj) * 1        # first col are ideal values
+        RP[:,1] = np.ones(N_obj) * 1e-12    # second col are nadir values
         
         xmin = np.ones((N,3))*xl
         xmin[:,2] = (np.ones((N,1))*rs[0]).flatten()
@@ -108,7 +87,7 @@ for cases in range(2):
         FES += nPop
         
         # %% reference vectors
-        W = das_dennis_generate(n_obj, p_ref)  # K x n_obj
+        W = das_dennis_generate(N_obj, p_ref)  # K x n_obj
         if W.shape[0] == 0:
             raise ValueError("No reference vectors generated. Increase p_ref or check M.")
         W = W / np.linalg.norm(W, axis=1, keepdims=True)
@@ -139,7 +118,7 @@ for cases in range(2):
             U = np.array(offspring_positions)[:nPop]
             U[:,:,2] = np.clip(U[:,:,2], rs[0], rs[1])
             # 5) evaluate offspring
-            FU = np.array([CostFunction_3F1C_MOO(U[i], stat, RP, Obstacle_Area, Covered_Area.copy()) for i in range(nPop)])
+            FU = np.array([CostFunction(U[i], stat, RP, Obstacle_Area, Covered_Area.copy()) for i in range(nPop)])
             FES += nPop
             
             # 6) combine pop and offspring into transient arrays for selection
@@ -154,7 +133,7 @@ for cases in range(2):
             
             # 8) normalization
             
-            F_norm = normalize_objectives(F_all, ideal, nadir)[:,0]
+            F_norm = global_normalized(F_all, RP)[:,0]
         
             # 9) associate each individual to a reference vector by minimal angle (max cosine)
             # prepare dir unit vectors (handle zero rows)
@@ -207,9 +186,9 @@ for cases in range(2):
             print(f"Gen {gen}, FES {FES}/{max_fes}, executed in {end_time:.3f}s") 
             # plot3D(pop)
             # %% ------------------------- SAVE MATRIX -------------------------- 
-            folder_name = f'data/case{cases+1}'
+            folder_name = f'data/4F1C/case{cases+1}'
             file_name = f'RVEA_{Trial}.mat'
-            save_mat(folder_name, file_name, pop, stat, W, max_fes)
+            save_mat(folder_name, file_name, pop, stat, W, RP)
             
         # %%plot final front from pop
         # plot_name = 'RVEA'

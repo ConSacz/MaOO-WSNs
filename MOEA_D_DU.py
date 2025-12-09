@@ -10,35 +10,12 @@ except:
 import numpy as np
 import time
 from utils.Decompose_functions import das_dennis_generate, tchebycheff, vertical_distance
-from utils.Multi_objective_functions import CostFunction_3F1C_MOO
+from utils.GA_functions import de_rand1_bin_pop
+from utils.Multi_objective_functions import CostFunction_4F1C_MOO
 from utils.Plot_functions import plot3D, plot3D_adjustable
 from utils.Workspace_functions import save_mat
 
-# %% DE operator variant that works directly from pop (rand/1/bin)
-# returns children positions array shape (nPop, D)
-
-def de_rand1_bin_pop(pop, CR=0.9, xmin=None, xmax=None):
-    # pop: list of dicts, each dict has 'Position' (ndarray)
-    positions = np.array([p['Position'] for p in pop])  # (N, D)
-    nPop, N, D = positions.shape
-    idx = np.arange(nPop)
-    children = np.empty_like(positions)
-    for i in range(nPop):
-        # choose three distinct indices != i
-        a, b, c = np.random.choice(idx[idx != i], 3, replace=False)
-        F = np.random.uniform(-1, 1, (N, D))
-        mutant = positions[a] + F * (positions[b] - positions[c])
-        # binomial crossover
-        cross = np.random.rand(N, D) < CR
-        jrand = np.random.randint(N)
-        cross[jrand] = True
-        trial = np.where(cross, mutant, positions[i])
-        trial[:,2] = np.clip(trial[:,2], 8, 12)
-        trial[:,:2] = np.clip(trial[:,:2],xmin, xmax)
-        children[i, :] = trial
-    return children
-
-# -------------------------
+# %% -------------------------
 # Utilities for pop creation / extraction
 # -------------------------
 
@@ -50,15 +27,18 @@ def pop_costs(pop):
 
 # ---------- Cost Function 3 functions 1 constraint
 def CostFunction(pop, stat, RP, Obstacle_Area, Covered_Area):
-    return CostFunction_3F1C_MOO(pop, stat, RP, Obstacle_Area, Covered_Area)
+    return CostFunction_4F1C_MOO(pop, stat, RP, Obstacle_Area, Covered_Area)
 
 rc_set = [20, 10]
 for cases in range(2):
     for Trial in range(5):
         # %% ---------- Main Parameters ----------
         # algorithm parameter
-        n_obj = 3
-        p_ref = 19
+        N_obj = 4
+        if N_obj == 3:
+            p_ref = 13 # 19 for 200 pop, 13 for 100 pop
+        elif N_obj ==4:
+            p_ref = 9 # 9 for 200 pop, 7 for 100 pop
         nPop = 200
         max_fes = 500000
         neigh_size = 20
@@ -75,16 +55,16 @@ for cases in range(2):
         stat[1, 0] = rc         # rc
         rs = (8,12)
         sink = np.array([xmax//2, xmax//2])
-        RP = np.zeros((3, 2))   
-        RP[:,0] = [1, 1, 1]          # first col are ideal values
-        RP[:,1] = [1e-12, 1e-12, 1e-12]    # second col are nadir values
+        RP = np.zeros((N_obj, 2))
+        RP[:,0] = np.ones(N_obj) * 1        # first col are ideal values
+        RP[:,1] = np.ones(N_obj) * 1e-12    # second col are nadir values
         
         # %% Initialization
         np.random.seed(seed)
         
         # 1) weight vectors and neighborhoods
         # W = uniform_weights(nPop, n_obj)
-        W = das_dennis_generate(n_obj, p_ref)
+        W = das_dennis_generate(N_obj, p_ref)
         # optionally remove random rows if W too large (kept from your prior code)
         if W.shape[0] > nPop:
             rows_to_delete = np.random.choice(W.shape[0], W.shape[0] - nPop, replace=False)
@@ -173,9 +153,9 @@ for cases in range(2):
             # plot3D(pop)
             
             # %% ------------------------- SAVE MATRIX -------------------------- 
-            folder_name = f'data/case{cases+1}'
+            folder_name = f'data/4F1C/case{cases+1}'
             file_name = f'MOEAD_DU_{Trial}.mat'
-            save_mat(folder_name, file_name, pop, stat, W, max_fes)
+            save_mat(folder_name, file_name, pop, stat, W, RP)
         # %%---------- final Plot ----------
         # plot_name = 'MOEA-D-DU'
         # plot3D_adjustable(pop, plot_name)

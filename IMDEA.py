@@ -6,36 +6,14 @@ except:
 # %%
 import numpy as np
 import time
-from utils.Domination_functions import check_domination, nondominated_front
+from utils.Domination_functions import check_domination, nondominated_front, prune_archive
 from utils.GA_functions import crossover_binomial, crossover_exponential
-from utils.Multi_objective_functions import CostFunction_3F1C_MOO
+from utils.Multi_objective_functions import CostFunction_4F1C_MOO
 from utils.Normalize_functions import global_normalized
 from utils.Plot_functions import plot3D, plot3D_adjustable
 from utils.Workspace_functions import save_mat
 
-# %% ---------- dominance helpers ----------
-
-def prune_archive(archive, RP, max_size):
-    if len(archive) <= max_size:
-        return archive
-    F = np.array([ind['Cost'] for ind in archive])[:, 0]
-    F = global_normalized(F, RP)
-    mask_nd = nondominated_front(F)
-    nd_inds = [archive[i] for i, m in enumerate(mask_nd) if m]
-    if len(nd_inds) <= max_size:
-        rem = [archive[i] for i, m in enumerate(mask_nd) if not m]
-        if rem:
-            sums = np.array([np.sum(ind['Cost']) for ind in rem])
-            order = np.argsort(sums)
-            nd_inds += [rem[i] for i in order[:max_size - len(nd_inds)]]
-        return nd_inds
-    else:
-        nd_objs = np.array([ind['Cost'] for ind in nd_inds])[:, 0]
-        sums = np.sum(nd_objs, axis=1)
-        order = np.argsort(sums)
-        return [nd_inds[i] for i in order[:max_size]]
-
-# ---------- helpers ----------
+# %%---------- helpers ----------
 
 def get_phi_idx(pop):
     F = np.array([ind['Cost'] for ind in pop])[:, 0]
@@ -68,13 +46,14 @@ def mutation_weighted_rand_to_phi_best(pop, idx, x_phi, x_r1, x_r3, F):
 
 # ---------- Cost Function ----------
 def CostFunction(pop, stat, RP, Obstacle_Area, Covered_Area):
-    return CostFunction_3F1C_MOO(pop, stat, RP, Obstacle_Area, Covered_Area)
+    return CostFunction_4F1C_MOO(pop, stat, RP, Obstacle_Area, Covered_Area)
 
 rc_set = [20, 10]
 for cases in range(2):
     for Trial in range(5):
         # %% ---------- Main Parameters ----------
         # algorithm parameter
+        N_obj = 4
         bounds = (0, 100)
         xl, xu = bounds
         max_fes = 500000
@@ -90,9 +69,9 @@ for cases in range(2):
         stat[1, 0] = rc         # rc
         rs = (8,12)
         sink = np.array([xu//2, xu//2])
-        RP = np.zeros((3, 2))   
-        RP[:,0] = [1, 1, 1]          # first col are ideal values
-        RP[:,1] = [1e-12, 1e-12, 1e-12]    # second col are nadir values
+        RP = np.zeros((N_obj, 2))
+        RP[:,0] = np.ones(N_obj) * 1        # first col are ideal values
+        RP[:,1] = np.ones(N_obj) * 1e-12    # second col are nadir values
         
         # %% Initialization
         # rng
@@ -204,7 +183,7 @@ for cases in range(2):
             print(f"Gen {gen}, FES {FES}/{max_fes}, executed in {end_time:.3f}s") 
             # plot3D(pop)
             # %% ------------------------- SAVE MATRIX -------------------------- 
-            folder_name = f'data/case{cases+1}'
+            folder_name = f'data/4F1C/case{cases+1}'
             file_name = f'IMDEA_{Trial}.mat'
             save_mat(folder_name, file_name, pop, stat, RP, max_fes)
         # %%---------- final Plot ----------

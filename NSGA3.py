@@ -4,99 +4,18 @@ try:
 except:
     pass
 # %%
-"""
-nsga3.py
-A compact NSGA-III implementation (numpy only).
-- SBX crossover + polynomial mutation
-- non-dominated sorting
-- Das & Dennis reference points
-- reference-association selection (niche filling) for the last front
-
-NSGA-III (numpy-only) — fixed version with 'pop' structure (list of dicts).
-Fixes:
- - avoid IndexError when population temporarily not equal to nPop
- - mating uses actual parent pool size; always generate exactly nPop offspring
- - selection/niching uses indices relative to merged population (pop_all)
- - ensures new population length == nPop
-"""
-
 import numpy as np
 import time
-from utils.Domination_functions import NS_Sort
+from utils.Domination_functions import NS_Sort, niching_selection
 from utils.GA_functions import sbx_crossover, polynomial_mutation
-from utils.Decompose_functions import das_dennis_generate, associate_to_reference
-from utils.Multi_objective_functions import CostFunction_3F1C_MOO
+from utils.Decompose_functions import das_dennis_generate
+from utils.Multi_objective_functions import CostFunction_4F1C_MOO
 from utils.Plot_functions import plot3D, plot3D_adjustable
 from utils.Workspace_functions import save_mat
 
-# ----------------------------
-# Association & niching
-# ----------------------------
-
-def niching_selection(F, W, RP, chosen_indices, last_front, nPop):
-    """
-    chosen_indices, last_front: lists of indices relative to F (i.e. indices in pop_all / F_all)
-    returns: list of chosen indices (indices in same coordinate system as chosen_indices / last_front)
-    """
-    remaining = nPop - len(chosen_indices)
-    if remaining <= 0:
-        return []
-
-    all_idx = np.array(list(chosen_indices) + list(last_front), dtype=int)
-    F_all = F[all_idx]
-    ref_idx_all, dist_all, _ = associate_to_reference(F_all, W, RP)
-    K = W.shape[0]
-
-    niche_count = np.zeros(K, dtype=int)
-    if len(chosen_indices) > 0:
-        chosen_refs = ref_idx_all[:len(chosen_indices)]
-        for r in chosen_refs:
-            niche_count[r] += 1
-
-    cand_rel_idx = np.arange(len(chosen_indices), len(all_idx))
-    ref_to_cands = {k: [] for k in range(K)}
-    for i_rel_idx, i_all_rel in enumerate(cand_rel_idx):
-        r = int(ref_idx_all[i_all_rel])
-        ref_to_cands[r].append(i_all_rel)
-
-    selected_rel = []
-    while remaining > 0:
-        zero_refs = [r for r in range(K) if niche_count[r] == 0 and len(ref_to_cands[r]) > 0]
-        if zero_refs:
-            for r in zero_refs:
-                if remaining == 0:
-                    break
-                cand_list = ref_to_cands[r]
-                best_rel = min(cand_list, key=lambda idx_rel: dist_all[idx_rel])
-                selected_rel.append(best_rel)
-                remaining -= 1
-                niche_count[r] += 1
-                for lst in ref_to_cands.values():
-                    if best_rel in lst:
-                        lst.remove(best_rel)
-        else:
-            viable_refs = [r for r in range(K) if len(ref_to_cands[r]) > 0]
-            if not viable_refs:
-                break
-            min_n = min(niche_count[r] for r in viable_refs)
-            refs_min = [r for r in viable_refs if niche_count[r] == min_n]
-            r = np.random.choice(refs_min)
-            cand_list = ref_to_cands[r]
-            best_rel = min(cand_list, key=lambda idx_rel: dist_all[idx_rel])
-            selected_rel.append(best_rel)
-            remaining -= 1
-            niche_count[r] += 1
-            for lst in ref_to_cands.values():
-                if best_rel in lst:
-                    lst.remove(best_rel)
-
-    # convert relative indices back to indices in the original F_all (i.e., indices in all_idx)
-    selected = [int(all_idx[int(rel)]) for rel in selected_rel]
-    return selected
-
-# ---------- Cost Function 3 functions 1 constraint
+# %%---------- Cost Function 3 functions 1 constraint
 def CostFunction(pop, stat, RP, Obstacle_Area, Covered_Area):
-    return CostFunction_3F1C_MOO(pop, stat, RP, Obstacle_Area, Covered_Area)
+    return CostFunction_4F1C_MOO(pop, stat, RP, Obstacle_Area, Covered_Area)
 
 rc_set = [20, 10]
 for cases in range(2):
@@ -104,10 +23,13 @@ for cases in range(2):
         # %%----------------------------
         # Main NSGA-III loop
         # ----------------------------
-        n_obj = 3
+        N_obj = 4
         nPop = 200
         max_fes = 500000
-        p_ref = 19
+        if N_obj == 3:
+            p_ref = 13 # 19 for 200 pop, 13 for 100 pop
+        elif N_obj ==4:
+            p_ref = 9 # 9 for 200 pop, 7 for 100 pop
         sbx_eta = 30
         mut_eta = 20
         pm = None
@@ -122,9 +44,9 @@ for cases in range(2):
         stat[1, 0] = rc         # rc
         rs = (8,12)
         sink = np.array([xu//2, xu//2])
-        RP = np.zeros((3, 2))   
-        RP[:,0] = [1, 1, 1]          # first col are ideal values
-        RP[:,1] = [0.00001, 0.00001, 0.00001]    # second col are nadir values
+        RP = np.zeros((N_obj, 2))
+        RP[:,0] = np.ones(N_obj) * 1        # first col are ideal values
+        RP[:,1] = np.ones(N_obj) * 1e-12    # second col are nadir values
         
         xmin = np.ones((N,3))*xl
         xmin[:,2] = (np.ones((N,1))*rs[0]).flatten()
@@ -134,7 +56,7 @@ for cases in range(2):
         # %% Initilization
         np.random.seed(seed)
         
-        W = das_dennis_generate(n_obj, p_ref)
+        W = das_dennis_generate(N_obj, p_ref)
         
         # environment
         Covered_Area = np.zeros((xu, xu), dtype=int)
@@ -233,9 +155,9 @@ for cases in range(2):
             # plot3D(pop)
             
             # %% ------------------------- SAVE MATRIX -------------------------- 
-            folder_name = f'data/case{cases+1}'
+            folder_name = f'data/4F1C/case{cases+1}'
             file_name = f'NSGA3_{Trial}.mat'
-            save_mat(folder_name, file_name, pop, stat, W, max_fes)
+            save_mat(folder_name, file_name, pop, stat, W, RP)
         # %%plot final front from pop
         # plot_name = 'NSGA3'
         # plot3D_adjustable(pop, plot_name)

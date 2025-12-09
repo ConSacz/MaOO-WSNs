@@ -6,58 +6,16 @@ except:
 
 import numpy as np
 import time
-from utils.Domination_functions import NS_Sort
+from utils.Domination_functions import NS_Sort, osd_selection
 from utils.GA_functions import sbx_crossover, polynomial_mutation
-from utils.Decompose_functions import das_dennis_generate, associate_to_reference
-from utils.Multi_objective_functions import CostFunction_3F1C_MOO
+from utils.Decompose_functions import das_dennis_generate
+from utils.Multi_objective_functions import CostFunction_4F1C_MOO
 from utils.Plot_functions import plot3D, plot3D_adjustable
 from utils.Workspace_functions import save_mat
 
-# %%============================================================
-# OSD 
-# ============================================================
-def osd_selection(F, fronts, nPop, RP, W):
-    chosen = []
-
-    for front in fronts:
-        if len(chosen) + len(front) <= nPop:
-            chosen.extend(front)
-        else:
-            needed = nPop - len(chosen)
-            last = np.array(front)
-            lastF = F[last]
-
-            # Decomposition assignment
-            ref_idx, dpp, _ = associate_to_reference(lastF, W, RP)
-
-            selected = []
-            K = W.shape[0]
-
-            # chọn mỗi region một đại diện (nhỏ nhất dpp)
-            for k in range(K):
-                idx_k = np.where(ref_idx == k)[0]
-                if len(idx_k) == 0:
-                    continue
-                best_local = idx_k[np.argmin(dpp[idx_k])]
-                selected.append(best_local)
-                if len(selected) >= needed:
-                    break
-
-            if len(selected) < needed:
-                remain = np.setdiff1d(np.arange(len(last)), selected)
-                fill_order = np.argsort(dpp[remain])
-                need_more = needed - len(selected)
-                fill = remain[fill_order[:need_more]]
-                selected = np.concatenate([selected, fill])
-
-            chosen.extend(list(last[selected]))
-            break
-
-    return chosen
-
-# ---------- Cost Function 3 functions 1 constraint
+# %%---------- Cost Function 3 functions 1 constraint
 def CostFunction(pop, stat, RP, Obstacle_Area, Covered_Area):
-    return CostFunction_3F1C_MOO(pop, stat, RP, Obstacle_Area, Covered_Area)
+    return CostFunction_4F1C_MOO(pop, stat, RP, Obstacle_Area, Covered_Area)
 
 rc_set = [20, 10]
 for cases in range(2):
@@ -65,10 +23,13 @@ for cases in range(2):
         # %%============================================================
         # Main NSGA-III-OSD loop
         # ============================================================
-        n_obj = 3
+        N_obj = 4
         nPop = 200
         max_fes = 500000
-        p_ref = 19
+        if N_obj == 3:
+            p_ref = 13 # 19 for 200 pop, 13 for 100 pop
+        elif N_obj ==4:
+            p_ref = 9 # 9 for 200 pop, 7 for 100 pop
         sbx_eta = 30
         mut_eta = 20
         pm = None
@@ -83,9 +44,9 @@ for cases in range(2):
         stat[1, 0] = rc         # rc
         rs = (8,12)
         sink = np.array([xu//2, xu//2])
-        RP = np.zeros((3, 2))   
-        RP[:,0] = [1, 1, 1]          # first col are ideal values
-        RP[:,1] = [0.00001, 0.00001, 0.00001]    # second col are nadir values
+        RP = np.zeros((N_obj, 2))
+        RP[:,0] = np.ones(N_obj) * 1        # first col are ideal values
+        RP[:,1] = np.ones(N_obj) * 1e-12    # second col are nadir values
         
         xmin = np.ones((N,3))*xl
         xmin[:,2] = (np.ones((N,1))*rs[0]).flatten()
@@ -96,7 +57,7 @@ for cases in range(2):
         np.random.seed(seed)
         
         # keep W for comparability (not used in OSD)
-        W = das_dennis_generate(n_obj, p_ref)
+        W = das_dennis_generate(N_obj, p_ref)
         
         # environment
         Covered_Area = np.zeros((xu, xu), dtype=int)
@@ -177,9 +138,9 @@ for cases in range(2):
             print(f"Gen {gen}, FES {FES}/{max_fes}, executed in {end_time:.3f}s")  
             # plot3D(pop)
             
-            folder_name = f'data/case{cases+1}'
+            folder_name = f'data/4F1C/case{cases+1}'
             file_name = f'NSGA3_OSD_{Trial}.mat'
-            save_mat(folder_name, file_name, pop, stat, W, max_fes)
+            save_mat(folder_name, file_name, pop, stat, W, RP)
         # %%plot final front from pop
         # plot_name = 'NSGA3-OSD'
         # plot3D_adjustable(pop, plot_name)

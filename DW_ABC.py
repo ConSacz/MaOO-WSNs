@@ -6,7 +6,7 @@ except:
 # %%
 import numpy as np
 import time
-from utils.Multi_objective_functions import CostFunction_3F1C_MOO
+from utils.Multi_objective_functions import CostFunction_4F1C_MOO
 from utils.Domination_functions import weighted_selection
 from utils.Decompose_functions import weight_assign, das_dennis_generate
 from utils.Plot_functions import plot3D, plot3D_adjustable, plot_MaOO
@@ -14,15 +14,18 @@ from utils.Workspace_functions import save_mat
 
 # ---------- Cost Function 3 functions 1 constraint
 def CostFunction(pop, stat, RP, Obstacle_Area, Covered_Area):
-    return CostFunction_3F1C_MOO(pop, stat, RP, Obstacle_Area, Covered_Area)
+    return CostFunction_4F1C_MOO(pop, stat, RP, Obstacle_Area, Covered_Area)
 
 # %% ------------------------- PARAMETERS --------------------------
 rc_set = [20, 10]
 for cases in range(2):
     for Trial in range(5): 
-        np.random.seed(Trial)
-        N_obj = 3
-        p_ref = 13 # 19 for 200 pop, 13 for 100 pop
+        np.random.seed(3)
+        N_obj = 4
+        if N_obj == 3:
+            p_ref = 13 # 19 for 200 pop, 13 for 100 pop
+        elif N_obj ==4:
+            p_ref = 7 # 9 for 200 pop, 7 for 100 pop
         max_fes = 500000
         nPop = 100
         xmin = 0
@@ -32,20 +35,20 @@ for cases in range(2):
         # Network Parameter
         N = 60
         rc = rc_set[cases]
+        # rc = 10
         stat = np.zeros((2, N))  # tạo mảng 2xN
         stat[1, 0] = rc         # rc
         rs = (8,12)
         sink = np.array([xmax//2, xmax//2])
-        RP = np.zeros((3, 2))   
-        RP[:,0] = [1, 1, 1]          # first col are ideal values
-        RP[:,1] = [1e-12, 1e-12, 1e-12]    # second col are nadir values
-        
+        RP = np.zeros((N_obj, 2))
+        RP[:,0] = np.ones(N_obj) * 1        # first col are ideal values
+        RP[:,1] = np.ones(N_obj) * 1e-12    # second col are nadir values  
         
         # %% ------------------------- INITIATION --------------------------
         Covered_Area = np.zeros((xmax, xmax), dtype=int)
         #Obstacle_Area = gen_target_area(1000, xmax)
         Obstacle_Area = np.ones((xmax, xmax), dtype=int)
-    
+        
         FES = 0
         pop = []
         for k in range(nPop):
@@ -72,7 +75,7 @@ for cases in range(2):
             F = np.array([p['Cost'] for p in pop])[:,0]
             W = das_dennis_generate(N_obj, p_ref)
             W = weight_assign(F, W, RP)
-        # %% ------------------------- EXPLORATION LOOP --------------------------
+            # %% ------------------------- EXPLORATION LOOP --------------------------
             #print("Exploration starts")
             for i in range(nPop):
                 k = np.random.randint(nPop)
@@ -88,7 +91,7 @@ for cases in range(2):
                     pop[i]['Position'] = alpop
                     pop[i]['Cost'] = alpop_cost
             FES += nPop
-        # %% ------------------------- EXPLOITATION LOOP --------------------------
+            # %% ------------------------- EXPLOITATION LOOP --------------------------
             #print("Exploitation starts")    
             for i in range(nPop):
                 arr = np.arange(1, N) 
@@ -114,23 +117,24 @@ for cases in range(2):
             del i, arr, alpop, alpop_cost, k, phi, h
             
             end_time = time.time() - start_time
-            print(f"Gen {gen}, FES {FES}/{max_fes}, executed in {end_time:.3}s") 
+            print(f"Gen {gen}, FES {FES}/{max_fes},{np.round(RP[:,0],4)} executed in {end_time:.3}s")
             
-        # %% ------------------------- PLOT --------------------------
+            # %% ------------------------- PLOT --------------------------
             # plot3D(pop)
-            #plot_MaOO(F, RP)
-        
-        # %% ------------------------- TOTAL TIME --------------------------
+            # plot_MaOO(F, RP)
+            
+            # %% ------------------------- TOTAL TIME --------------------------
         total_time = (time.time() - start_loop)/60
         print(f'{cases}.{Trial}, total time: = {total_time:.0}m')
-        # end loop    
-    
-    # plot3D_adjustable(pop, name = 'DWABC')
-    
-    # %% ------------------------- SAVE MATRIX --------------------------    
-        folder_name = f'data/case{cases+1}'
+        # print(f'total time: = {total_time:.2}m')
+            # end loop    
+            
+            # plot3D_adjustable(pop, name = 'DWABC')
+            
+            # %% ------------------------- SAVE MATRIX --------------------------    
+        folder_name = f'data/4F1C/case{cases+1}'
         file_name = f'DWABC_{Trial}.mat'
-        save_mat(folder_name, file_name, pop, stat, W, max_fes)
+        save_mat(folder_name, file_name, pop, stat, W, RP)
     
 # # %%
 # from utils.Normalize_functions import global_normalized
