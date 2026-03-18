@@ -42,27 +42,27 @@ def associate_to_reference(F, W, RP):
 # %%
 def weight_assign(F, W, RP):
 
-    def hungarian_assign(perps):
-        from scipy.optimize import linear_sum_assignment
-        n = perps.shape[0]
-        eps = 1e-9
-        cost = perps + (np.arange(n)[:, None] * eps)
-        ind_row, ind_col = linear_sum_assignment(cost)
-        ref_idx = ind_col
-        dist = perps[np.arange(n), ref_idx]
-        return ref_idx, dist
-    
+    # def hungarian_assign(perps):
+    #     from scipy.optimize import linear_sum_assignment
+    #     n = perps.shape[0]
+    #     eps = 1e-9
+    #     cost = perps + (np.arange(n)[:, None] * eps)
+    #     ind_row, ind_col = linear_sum_assignment(cost)
+    #     ref_idx = ind_col
+    #     dist = perps[np.arange(n), ref_idx]
+    #     return ref_idx, dist
+    # %%
     def greedy_assign(perps):
-        n = perps.shape[0]
+        n, m = perps.shape
         pairs = []
-        for j in range(n):
-            for i in range(n):
+        for i in range(n):
+            for j in range(m):
                 pairs.append((perps[i, j], i, j))
     
         pairs.sort(key=lambda x: x[0], reverse=True)
     
         ref_idx = np.full(n, -1)
-        used_rp = np.zeros(n, dtype=bool)
+        used_rp = np.zeros(m, dtype=bool)
         assigned = 0
         for d, i, j in pairs:
             if ref_idx[i] == -1 and not used_rp[j]:
@@ -74,7 +74,7 @@ def weight_assign(F, W, RP):
 
         dist = perps[np.arange(n), ref_idx]
         return ref_idx, dist
-    
+    # %%
     _, _, perps = associate_to_reference(F, W, RP)
     ref_idx, dist = greedy_assign(perps)
     W = W[ref_idx]

@@ -3,33 +3,89 @@ import pyvista as pv
 import matplotlib.pyplot as plt
 from .Domination_functions import get_pareto_front
 from .Normalize_functions import global_normalized
+from .Single_objective_functions import CR_Func, SE_Func, CE_Func, LT_CE_SE_Func
+
 
 # %% plot deployment
-def plot_deployment2D(pop, Obstacle_Area, Covered_Area):
+def plot_deployment2D(pop, stat, Obstacle_Area, Covered_Area):
+    import networkx as nx
+    from utils.Graph_functions import Graph
+    
     N = pop.shape[0]
+    rc = stat[1, 0]
+    
+    coverage, Covered_Area = CR_Func(pop, Obstacle_Area, Covered_Area)
+    LT, CE, SE = LT_CE_SE_Func(pop, rc)
     
     plt.clf()
-    obs_row, obs_col = np.where(Obstacle_Area == 1)
-    plt.plot(obs_col, obs_row, '.', markersize=0.1, color='blue')
-    obs_row, obs_col = np.where(Obstacle_Area == 0)
-    plt.plot(obs_col, obs_row, '.', markersize=2, color='black')
-    discovered_obs_row, discovered_obs_col = np.where(Covered_Area == -1)
-    plt.plot(discovered_obs_col, discovered_obs_row, '.', markersize=2, color='red')
-    #discovered_row, discovered_col = np.where(Covered_Area == 1)
-    #plt.plot(discovered_col, discovered_row, '.', markersize=5, color='green')
+    # obs_row, obs_col = np.where(Obstacle_Area == 1)
+    # plt.plot(obs_col, obs_row, '.', markersize=0.1, color='blue')
+    # obs_row, obs_col = np.where(Obstacle_Area == 0)
+    # plt.plot(obs_col, obs_row, '.', markersize=5, color='red')
+    # discovered_obs_row, discovered_obs_col = np.where(Covered_Area == 0)
+    # plt.plot(discovered_obs_row, discovered_obs_col, '.', markersize=1, color='red')
+    # discovered_row, discovered_col = np.where(Covered_Area == 1)
+    # plt.plot(discovered_row, discovered_col, '.', markersize=1, color='green')
 
     theta = np.linspace(0, 2*np.pi, 500)
     for i in range(N):
         plt.plot(pop[i,1], pop[i,0], 'o', markersize=3, color='blue')
         plt.text(pop[i,1], pop[i,0], str(i+1), fontsize=10, color='red')
-        x = pop[i,1] + pop[i,2] * np.cos(theta)
-        y = pop[i,0] + pop[i,2] * np.sin(theta)
-        plt.fill(x, y, color=(0.6, 1, 0.6), alpha=0.2, edgecolor='k')
+        # x = pop[i,1] + pop[i,2] * np.cos(theta)
+        # y = pop[i,0] + pop[i,2] * np.sin(theta)
+        # plt.fill(x, y, color=(0.6, 1, 0.6), alpha=0.2, edgecolor='k')
         
-    del x, y, theta
+        # draw rs
+
+        # cx, cy = pop[i,1], pop[i,0]
+        # r = pop[i,2]
+        
+        # # Chọn hướng bán kính (0 rad – sang phải)
+        # ex = cx - r
+        # ey = cy
+        
+        # plt.plot([cx, ex], [cy, ey], color='blue', linewidth=1)
+        
+        # # Ghi nhãn r_s_i ở giữa đoạn
+        # mx = (cx + ex) / 2
+        # my = (cy + ey) / 2 - 2
+        # plt.text(mx, my, rf"$r_{{s_{i+1}}}$", fontsize=9, color='black')
+
+    G = Graph(pop,rc)
+    for i in range(N):
+        try:
+            path = nx.shortest_path(G, source=0, target=i, weight='weight')
+        except nx.NetworkXNoPath:
+            continue  # skip if no path exists
+        for j in range(len(path)-1):
+            x = path[j]
+            y = path[j+1]
+            plt.plot([pop[x,1], pop[y,1]],[pop[x,0], pop[y,0]],'-', color='gray', linewidth=0.8)
+        
+        
+        
+        
+        # for j in range(i + 1, N):
+        #     dx = pop[i,1] - pop[j,1]
+        #     dy = pop[i,0] - pop[j,0]
+        #     d = np.sqrt(dx*dx + dy*dy)
+
+        #     if d <= rc:
+        #         plt.plot([pop[i,1], pop[j,1]],
+        #                  [pop[i,0], pop[j,0]],
+        #                  '-', color='gray', linewidth=0.8)
+                
+    # del x, y, theta
     plt.xlim([0, Obstacle_Area.shape[1]])
     plt.ylim([0, Obstacle_Area.shape[0]])
-    #plt.title(f"{BestCostIt[it]*100:.2f}% at time step: {it}")
+    plt.title("Unconnected Network")
+    # plt.title(f"Coverage cost function: {coverage:.5f}")
+#     plt.title(
+#     rf"$C = {coverage:.3f}, "
+#     rf"L_{{inv}} = {LT:.5f}, "
+#     rf"E^{{comm}} = {CE:.5f}, "
+#     rf"E^{{sens}} = {SE:.5f}$"
+# )
     plt.gca().invert_yaxis()
     plt.grid(True)
     plt.pause(0.001)
@@ -68,7 +124,7 @@ def plot3D(pop, W = None):
     F_set = np.array([ind['Cost'].flatten() for ind in pop])
 
     # tạo figure và axes 3D
-    fig = plt.figure(1)
+    fig = plt.figure(figsize=(6, 6))
     plt.clf()
     ax = fig.add_subplot(111, projection='3d')
 
@@ -80,8 +136,14 @@ def plot3D(pop, W = None):
     
     # draw Reference point
     if W is not None:
-        ax.scatter(W[:, 0], W[:, 1], W[:, 2], c='r', marker='o', label='PF')
-    
+        ax.scatter(W[:, 0], W[:, 1], W[:, 2], c='b', marker='o', label='PF')
+        
+    # for i in range(len(W)):
+    #     x1, y1, z1 = F_set[i]
+    #     x2, y2, z2 = W[i]
+
+    #     ax.text(x1, y1, z1, f"{i}", color='blue', fontsize=5)
+    #     ax.text(x2, y2, z2, f"{i}", color='black', fontsize=5)
     ax.view_init(elev=20, azim=190)
 
     # nhãn trục
@@ -95,6 +157,141 @@ def plot3D(pop, W = None):
     # hiển thị tạm để cập nhật liên tục theo iteration
     plt.pause(0.001)
 
+# %% plot 3D global normalized
+def plot3D_GN(pop, W, RP):
+    # mỗi ind là dict có key 'Cost'
+    F_set = np.array([ind['Cost'].flatten() for ind in pop])
+    F_set = global_normalized(F_set, RP)
+
+    # tạo figure và axes 3D
+    fig = plt.figure(figsize=(6, 6))
+    plt.clf()
+    ax = fig.add_subplot(111, projection='3d')
+    
+
+    # # vẽ toàn bộ quần thể
+    # ax.scatter(F_set[:, 0], F_set[:, 1], F_set[:, 2], c='g', marker='o', label='Solution Points')
+    # for i, f in enumerate(F_set):
+    #     ax.text(
+    #         f[0], f[1], f[2],
+    #         f'({f[0]:.2f}, {f[1]:.2f}, {f[2]:.2f})',
+    #         fontsize=4,
+    #         color='darkgreen'
+    #     )
+
+    ax.scatter(W[:, 0], W[:, 1], W[:, 2], c='b', marker='o', label='Reference Points')
+    for i, w in enumerate(W):
+        ax.text(
+            w[0], w[1], w[2],
+            f'({w[0]:.2f}, {w[1]:.2f}, {w[2]:.2f})',
+            fontsize=4,
+            color='blue'
+        )
+
+    
+    # 
+    L = 1.1
+    for i in range(W.shape[0]):
+        w = W[i] / np.linalg.norm(W[i])
+        ax.plot(
+            [0, L * w[0]],
+            [0, L * w[1]],
+            [0, L * w[2]],
+            color='b',
+            linewidth=0.5,
+            linestyle='--',
+            alpha=0.6
+        )
+
+    # for i in range(min(F_set.shape[0], W.shape[0])):
+    #     f = F_set[i]
+    #     w = W[i]
+    
+    #     # chuẩn hóa hướng
+    #     w_hat = w / np.linalg.norm(w)
+    
+    #     # hình chiếu vuông góc của f lên đường thẳng w
+    #     proj = np.dot(f, w_hat) * w_hat
+    
+    #     # vẽ đoạn thẳng khoảng cách
+    #     ax.plot(
+    #         [f[0], proj[0]],
+    #         [f[1], proj[1]],
+    #         [f[2], proj[2]],
+    #         color='green',
+    #         linewidth=1.0,
+    #         alpha=1
+    #     )
+    
+    # pop chỉ có 1 điểm
+    
+    f = F_set[4]
+    ax.scatter(f[0], f[1], f[2], c='g', marker='o', label='Solution Points')
+    ax.text(
+        f[0], f[1], f[2],
+        f'({f[0]:.2f}, {f[1]:.2f}, {f[2]:.2f})',
+        fontsize=4,
+        color='darkgreen'
+    )
+    
+    projs = []
+    dists = []
+    
+    for i in range(W.shape[0]):
+        w = W[i]
+        w_hat = w / np.linalg.norm(w)
+    
+        # hình chiếu vuông góc
+        proj = np.dot(f, w_hat) * w_hat
+    
+        # khoảng cách
+        dist = np.linalg.norm(f - proj)
+    
+        projs.append(proj)
+        dists.append(dist)
+    
+    projs = np.array(projs)
+    dists = np.array(dists)
+    
+    idx_min = np.argmin(dists)
+    idx_max = np.argmax(dists)
+    
+    for i in range(W.shape[0]):
+        if i == idx_min:
+            color = 'red'
+            lw = 1.0
+            alpha = 1.0
+        elif i == idx_max:
+            color = 'green'
+            lw = 1.0
+            alpha = 1.0
+        else:
+            color = 'gray'
+            lw = 0.4
+            alpha = 0.4
+    
+        ax.plot(
+            [f[0], projs[i][0]],
+            [f[1], projs[i][1]],
+            [f[2], projs[i][2]],
+            color=color,
+            linewidth=lw,
+            alpha=alpha
+        )
+
+    ax.view_init(elev=10, azim=70)
+    
+    # nhãn trục
+    ax.set_xlabel(r'$f_1$', labelpad=0)
+    ax.set_ylabel(r'$f_2$', labelpad=0)
+    ax.set_zlabel(r'$f_3$', labelpad=0)
+
+    # legend
+    ax.legend()
+
+    # hiển thị tạm để cập nhật liên tục theo iteration
+    plt.pause(0.001)
+    
 # %% plot 3D adjustable figure
 def plot3D_adjustable(pop, name = ''):
     Front = np.array([ind['Cost'].flatten() for ind in get_pareto_front(pop)])
