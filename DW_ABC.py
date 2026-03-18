@@ -6,22 +6,23 @@ except:
 # %%
 import numpy as np
 import time
-from utils.Multi_objective_functions import CostFunction_4F1C_MOO
+from utils.Multi_objective_functions import CostFunction_3F1C_MOO
 from utils.Domination_functions import weighted_selection
 from utils.Decompose_functions import weight_assign, das_dennis_generate
-from utils.Plot_functions import plot3D, plot3D_adjustable, plot_MaOO
+from utils.Plot_functions import plot3D, plot3D_adjustable, plot_MaOO, plot_deployment2D, plot3D_GN
 from utils.Workspace_functions import save_mat
 
 # ---------- Cost Function 3 functions 1 constraint
 def CostFunction(pop, stat, RP, Obstacle_Area, Covered_Area):
-    return CostFunction_4F1C_MOO(pop, stat, RP, Obstacle_Area, Covered_Area)
+    return CostFunction_3F1C_MOO(pop, stat, RP, Obstacle_Area, Covered_Area)
 
 # %% ------------------------- PARAMETERS --------------------------
 rc_set = [20, 10]
-for cases in range(2):
-    for Trial in range(5): 
-        np.random.seed(3)
-        N_obj = 4
+for cases in range(1):
+    for Trial in range(1):
+        #%%
+        np.random.seed(1)
+        N_obj = 3
         if N_obj == 3:
             p_ref = 13 # 19 for 200 pop, 13 for 100 pop
         elif N_obj ==4:
@@ -34,8 +35,8 @@ for cases in range(2):
         
         # Network Parameter
         N = 60
-        rc = rc_set[cases]
-        # rc = 10
+        # rc = rc_set[cases]
+        rc = 20
         stat = np.zeros((2, N))  # tạo mảng 2xN
         stat[1, 0] = rc         # rc
         rs = (8,12)
@@ -53,13 +54,14 @@ for cases in range(2):
         pop = []
         for k in range(nPop):
             alpop = np.zeros((N, 3))
-            # pos0 = np.random.uniform(xmax/2-k*(0.6*xmax/nPop/2-1e-12), xmax/2+k*(0.6*xmax/nPop/2)+1e-12, (N, 2))
-            pos0 = np.random.uniform(xmax/2-15, xmax/2+15, (N, 2))
+            # pos0 = np.random.uniform(xmax/2-k*(xmax/nPop/2-1e-12), xmax/2+k*(xmax/nPop/2)+1e-12, (N, 2))
+            pos0 = np.random.uniform(xmax/2-rc, xmax/2+rc, (N, 2))
             pos0[0] = sink
             rs0 = np.random.uniform(rs[0], rs[1], (N, 1))
             alpop[:,:2] = pos0
             alpop[:,2] = rs0[:, 0]
             alpop_cost = CostFunction(alpop, stat, RP, Obstacle_Area, Covered_Area.copy())
+            # alpop_cost = np.random.uniform(0, 1, (1, 3))
             RP[:,0] = np.minimum(RP[:,0], alpop_cost[0])
             RP[:,1] = np.maximum(RP[:,1], alpop_cost[0])
             pop.append({'Position': alpop, 'Cost': alpop_cost})
@@ -75,6 +77,7 @@ for cases in range(2):
             F = np.array([p['Cost'] for p in pop])[:,0]
             W = das_dennis_generate(N_obj, p_ref)
             W = weight_assign(F, W, RP)
+            # W = np.vstack((W1, W))
             # %% ------------------------- EXPLORATION LOOP --------------------------
             #print("Exploration starts")
             for i in range(nPop):
@@ -120,25 +123,26 @@ for cases in range(2):
             print(f"Gen {gen}, FES {FES}/{max_fes},{np.round(RP[:,0],4)} executed in {end_time:.3}s")
             
             # %% ------------------------- PLOT --------------------------
-            # plot3D(pop)
+            plot3D(pop)
+            # plot3D_GN(pop, W, RP)
             # plot_MaOO(F, RP)
             
             # %% ------------------------- TOTAL TIME --------------------------
         total_time = (time.time() - start_loop)/60
         print(f'{cases}.{Trial}, total time: = {total_time:.0}m')
         # print(f'total time: = {total_time:.2}m')
-            # end loop    
+        # end loop    
             
             # plot3D_adjustable(pop, name = 'DWABC')
             
             # %% ------------------------- SAVE MATRIX --------------------------    
-        folder_name = f'data/4F1C/case{cases+1}'
-        file_name = f'DWABC_{Trial}.mat'
-        save_mat(folder_name, file_name, pop, stat, W, RP)
+        # folder_name = f'data/4F1C/case{cases+1}'
+        # file_name = f'DWABC_{Trial}.mat'
+        # save_mat(folder_name, file_name, pop, stat, W, RP)
     
-# # %%
+# %%
 # from utils.Normalize_functions import global_normalized
 # for i in range(nPop):
-    # pop[i]['Cost'] = global_normalized(pop[i]['Cost'], RP)
+#     pop[i]['Cost'] = global_normalized(pop[i]['Cost'], RP)
     # pop[i]['Cost'] = CostFunction(pop[i]['Position'], stat, RP, Obstacle_Area, Covered_Area.copy())
-    
+# plot_deployment2D(pop, stat, Obstacle_Area, Covered_Area)

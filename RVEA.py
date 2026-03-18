@@ -29,13 +29,14 @@ def CostFunction(pop, stat, RP, Obstacle_Area, Covered_Area):
     return CostFunction_4F1C_MOO(pop, stat, RP, Obstacle_Area, Covered_Area)
 rc_set = [20, 10]
 for cases in range(2):
-    for Trial in range(5):
+    for Trial in range(1):
+        start_time = time.time()
         # %% ---------- RVEA main (pop-only) ----------
         # Algorithm Parameter
         seed=Trial
         N_obj = 4
         nPop = 200
-        max_fes = 500000
+        max_fes = 10000
         if N_obj == 3:
             p_ref = 13 # 19 for 200 pop, 13 for 100 pop
         elif N_obj ==4:
@@ -99,7 +100,7 @@ for cases in range(2):
         # %% main loop
         gen = 0
         while FES < max_fes:
-            start_time = time.time()
+            start_time_it = time.time()
             gen += 1
             # 4) mating & variation -> produce offspring positions
             # random mating order
@@ -180,16 +181,17 @@ for cases in range(2):
                     'Cost'    : F_all[idx].copy()
                 })
             pop = new_pop
-            end_time = time.time() - start_time
             
+            end_time_it = time.time() - start_time_it
             # optional logging
-            print(f"Gen {gen}, FES {FES}/{max_fes}, executed in {end_time:.3f}s") 
+            print(f"Gen {gen}, FES {FES}/{max_fes}, executed in {end_time_it:.3f}s") 
             # plot3D(pop)
             # %% ------------------------- SAVE MATRIX -------------------------- 
-            folder_name = f'data/4F1C/case{cases+1}'
-            file_name = f'RVEA_{Trial}.mat'
-            save_mat(folder_name, file_name, pop, stat, W, RP)
-            
+            # folder_name = f'data/4F1C/case{cases+1}'
+            # file_name = f'RVEA_{Trial}.mat'
+            # save_mat(folder_name, file_name, pop, stat, W, RP)
+        end_time = time.time() - start_time
+        print(f"executed in {end_time/max_fes*10:.3f}s") 
         # %%plot final front from pop
         # plot_name = 'RVEA'
         # plot3D_adjustable(pop, plot_name)
